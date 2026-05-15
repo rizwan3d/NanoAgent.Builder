@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - NanoAgent.Builder</title>
     <script type="importmap"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/NanoAgent.Builder.styles.css" asp-append-version="true" />
@@ -12,65 +15,70 @@
 @{
     var useBuilderLayout = ViewData["UseBuilderLayout"] is bool builderLayoutEnabled && builderLayoutEnabled;
     var shellClass = useBuilderLayout ? "builder-page-shell" : string.Empty;
-    var mainContainerClass = useBuilderLayout ? "container-fluid px-0" : "container";
-    var navContainerClass = useBuilderLayout ? "container-fluid px-4" : "container";
-    var navMarginClass = useBuilderLayout ? "" : "mb-3";
+    var mainContainerClass = useBuilderLayout ? "container-fluid px-0" : "container-xl";
+    var navContainerClass = useBuilderLayout ? "container-fluid px-3 px-lg-4" : "container-xl px-3 px-lg-4";
 }
-<body class="@shellClass">
-    <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow @navMarginClass">
-            <div class="@navContainerClass">
-                <a class="navbar-brand" asp-area="" asp-page="/Index">NanoAgent.Builder</a>
+<body class="app-body @shellClass">
+    <header class="builder-site-header">
+        <nav class="navbar navbar-expand-lg builder-navbar">
+            <div class="@navContainerClass builder-nav-shell">
+                <a class="navbar-brand builder-brand" asp-area="" asp-page="/Index">
+                    <span class="builder-brand-mark">N</span>
+                    <span class="builder-brand-copy">
+                        <strong>NanoAgent.Builder</strong>
+                        <small>Simple AI app workspace</small>
+                    </span>
+                </a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
                         aria-expanded="false" aria-label="Toggle navigation">
                     <span class="navbar-toggler-icon"></span>
                 </button>
-                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
-                    <ul class="navbar-nav flex-grow-1">
+                <div class="navbar-collapse collapse builder-nav-collapse justify-content-between">
+                    <ul class="navbar-nav builder-nav-links">
                         <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-page="/Index">Dashboard</a>
+                            <a class="nav-link builder-nav-link" asp-area="" asp-page="/Index">Dashboard</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-page="/Plans">Packages</a>
+                            <a class="nav-link builder-nav-link" asp-area="" asp-page="/Plans">Plans</a>
                         </li>
                         @if (User.Identity?.IsAuthenticated == true)
                         {
                             <li class="nav-item">
-                                <a class="nav-link text-dark" asp-area="" asp-page="/Workspace">Workspace</a>
+                                <a class="nav-link builder-nav-link" asp-area="" asp-page="/Workspace">Workspace</a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link text-dark" asp-area="" asp-page="/Billing/Index">Billing</a>
+                                <a class="nav-link builder-nav-link" asp-area="" asp-page="/Billing/Index">Billing</a>
                             </li>
                         }
                         @if (User.IsInRole("Admin"))
                         {
                             <li class="nav-item">
-                                <a class="nav-link text-dark" asp-area="" asp-page="/Admin/Index">Admin</a>
+                                <a class="nav-link builder-nav-link" asp-area="" asp-page="/Admin/Index">Admin</a>
                             </li>
                         }
                         <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-page="/Privacy">Privacy</a>
+                            <a class="nav-link builder-nav-link" asp-area="" asp-page="/Privacy">Privacy</a>
                         </li>
                     </ul>
-                    <ul class="navbar-nav">
+                    <ul class="navbar-nav builder-nav-actions">
                         @if (User.Identity?.IsAuthenticated == true)
                         {
                             <li class="nav-item">
-                                <span class="nav-link text-dark">@User.Identity.Name</span>
+                                <span class="nav-link builder-user-pill">@User.Identity.Name</span>
                             </li>
                             <li class="nav-item">
                                 <form method="post" asp-page="/Account/Logout" class="d-inline">
-                                    <button type="submit" class="btn btn-link nav-link text-dark">Logout</button>
+                                    <button type="submit" class="btn btn-link nav-link builder-nav-link builder-nav-button">Logout</button>
                                 </form>
                             </li>
                         }
                         else
                         {
                             <li class="nav-item">
-                                <a class="nav-link text-dark" asp-area="" asp-page="/Account/Login">Login</a>
+                                <a class="nav-link builder-nav-link" asp-area="" asp-page="/Account/Login">Login</a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link text-dark" asp-area="" asp-page="/Account/Register">Register</a>
+                                <a class="btn btn-primary builder-signup-button" asp-area="" asp-page="/Account/Register">Create account</a>
                             </li>
                         }
                     </ul>
@@ -78,17 +86,19 @@
             </div>
         </nav>
     </header>
-    <div class="@mainContainerClass">
-        <main role="main" class="@(useBuilderLayout ? "" : "pb-3")">
+
+    <div class="@mainContainerClass app-main-shell">
+        <main role="main" class="@(useBuilderLayout ? "" : "pb-4")">
             @RenderBody()
         </main>
     </div>
 
     @if (!useBuilderLayout)
     {
-        <footer class="border-top footer text-muted">
-            <div class="container">
-                &copy; 2026 - NanoAgent.Builder - <a asp-area="" asp-page="/Privacy">Privacy</a>
+        <footer class="builder-footer">
+            <div class="container-xl px-3 px-lg-4">
+                <span>&copy; 2026 NanoAgent.Builder</span>
+                <a asp-area="" asp-page="/Privacy">Privacy</a>
             </div>
         </footer>
     }

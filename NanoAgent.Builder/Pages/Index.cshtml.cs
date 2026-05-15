@@ -58,26 +58,29 @@ public class IndexModel : PageModel
         CreateInput = new CreateProjectInput();
         await TryUpdateModelAsync(CreateInput, nameof(CreateInput));
 
+        await LoadPageDataAsync(cancellationToken);
+        CreateInput.LlmModel = string.IsNullOrWhiteSpace(CreateInput.LlmModel)
+            ? CurrentUsage?.AllowedLlmModels.FirstOrDefault() ?? string.Empty
+            : CreateInput.LlmModel;
+
         if (!TryValidateModel(CreateInput, nameof(CreateInput)))
         {
-            await LoadPageDataAsync(cancellationToken);
             return Page();
         }
 
         try
         {
-            await _projectService.CreateAsync(
-                new CreateAgentProjectRequest(CreateInput.Name, CreateInput.Description, CreateInput.LlmModel),
+            var project = await _projectService.CreateAsync(
+                new CreateAgentProjectRequest(CreateInput.Name, null, CreateInput.LlmModel),
                 cancellationToken);
+
+            return RedirectToPage("/Workspace", new { projectId = project.Id });
         }
         catch (DomainException exception)
         {
             ModelState.AddModelError(string.Empty, exception.Message);
-            await LoadPageDataAsync(cancellationToken);
             return Page();
         }
-
-        return RedirectToPage();
     }
 
     public async Task<IActionResult> OnPostRenameAsync(Guid projectId, string name, CancellationToken cancellationToken)
@@ -138,9 +141,6 @@ public class IndexModel : PageModel
         [StringLength(200)]
         [Display(Name = "Project name")]
         public string Name { get; set; } = string.Empty;
-
-        [StringLength(1000)]
-        public string? Description { get; set; }
 
         [Required]
         [Display(Name = "LLM model")]

@@ -2,18 +2,35 @@
 @model NanoAgent.Builder.Pages.Account.RegisterModel
 @{
     ViewData["Title"] = "Create account";
+    ViewData["UseBuilderLayout"] = true;
 }
 
-<div class="row justify-content-center">
-    <div class="col-lg-6">
-        <div class="card shadow-sm">
-            <div class="card-body p-4">
-                <p class="text-uppercase text-muted fw-semibold mb-2">User signup</p>
-                <h1 class="h3 mb-3">Create your NanoAgent account</h1>
-                <p class="text-muted">New users are placed on the Free SaaS package automatically.</p>
+<section class="app-auth-shell">
+    <div class="container-xl px-3 px-lg-4">
+        <div class="app-auth-grid">
+            <div class="app-auth-hero">
+                <p class="app-kicker mb-2">Create account</p>
+                <h1>Start building with a cleaner workspace.</h1>
+                <p class="mb-0">New accounts start on the free plan, so you can create projects right away and upgrade only when you need more capacity.</p>
+
+                <div class="app-auth-points">
+                    <div class="app-auth-point">
+                        <strong>Free plan from day one</strong>
+                        <div class="small visually-muted mt-1">Launch a project without a payment step.</div>
+                    </div>
+                    <div class="app-auth-point">
+                        <strong>Ready for growth</strong>
+                        <div class="small visually-muted mt-1">Move to higher token and project limits when your workflow expands.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="app-auth-card">
+                <p class="app-kicker mb-2">Register</p>
+                <h2 class="h3 mb-3">Create your NanoAgent account</h2>
 
                 <form method="post">
-                    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-3"></div>
                     <input type="hidden" asp-for="ReturnUrl" />
 
                     <div class="mb-3">
@@ -34,7 +51,7 @@
                         <span asp-validation-for="Input.Password" class="text-danger"></span>
                     </div>
 
-                    <div class="mb-3">
+                    <div class="mb-4">
                         <label asp-for="Input.ConfirmPassword" class="form-label"></label>
                         <input asp-for="Input.ConfirmPassword" class="form-control" autocomplete="new-password" />
                         <span asp-validation-for="Input.ConfirmPassword" class="text-danger"></span>
@@ -45,7 +62,7 @@
             </div>
         </div>
     </div>
-</div>
+</section>
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />

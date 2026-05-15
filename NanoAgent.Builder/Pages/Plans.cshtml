@@ -2,70 +2,68 @@
 @model NanoAgent.Builder.Pages.PlansModel
 @{
     ViewData["Title"] = "SaaS packages";
+    ViewData["UseBuilderLayout"] = true;
 }
 
-<div class="d-flex justify-content-between align-items-start mb-4">
-    <div>
-        <p class="text-uppercase text-muted fw-semibold mb-2">SaaS packages</p>
-        <h1 class="display-6 fw-bold">Choose a package</h1>
-        <p class="lead mb-0">Free stays local. Paid tiers are monthly Stripe subscriptions with package-level project, token, and LLM model limits stored in the single app database.</p>
-    </div>
-</div>
+<section class="app-page">
+    <div class="container-xl px-3 px-lg-4">
+        <div class="app-page-header">
+            <div class="app-page-copy">
+                <p class="app-kicker mb-2">Plans</p>
+                <h1>Pick the setup that fits your build speed.</h1>
+                <p class="mb-0">Start free, stay local when you want, and move to paid plans when you need more projects, more tokens, or broader model access.</p>
+            </div>
+        </div>
 
-@if (TempData["StatusMessage"] is string message)
-{
-    <div class="alert alert-success">@message</div>
-}
+        @if (TempData["StatusMessage"] is string message)
+        {
+            <div class="alert alert-success mb-4">@message</div>
+        }
 
-<div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-4"></div>
 
-<div class="row g-4">
-    @foreach (var plan in Model.Plans)
-    {
-        var isCurrentPlan = Model.CurrentSubscription?.PlanCode == plan.Code;
-        <div class="col-lg-4">
-            <div class="card h-100 shadow-sm @(isCurrentPlan ? "border-primary" : string.Empty)">
-                <div class="card-body p-4 d-flex flex-column">
+        <div class="app-pricing-grid">
+            @foreach (var plan in Model.Plans)
+            {
+                var isCurrentPlan = Model.CurrentSubscription?.PlanCode == plan.Code;
+                <article class="app-pricing-card @(isCurrentPlan ? "current-plan" : null)">
                     <div class="d-flex justify-content-between align-items-start gap-3">
-                        <h2 class="h4 mb-1">@plan.Name</h2>
+                        <div>
+                            <p class="app-kicker mb-1">@plan.Code</p>
+                            <h2 class="h3 mb-2">@plan.Name</h2>
+                        </div>
                         @if (isCurrentPlan)
                         {
-                            <span class="badge text-bg-primary">Current</span>
+                            <span class="builder-status-pill">Current</span>
                         }
                         else if (!plan.RequiresPayment)
                         {
-                            <span class="badge text-bg-secondary">Free</span>
+                            <span class="dashboard-pill">Free</span>
                         }
                         else
                         {
-                            <span class="badge text-bg-success">Paid</span>
+                            <span class="dashboard-pill">Paid</span>
                         }
                     </div>
-                    <p class="text-muted">@plan.Description</p>
-                    <div class="display-6 fw-semibold mb-3">
-                        @if (plan.MonthlyPrice == 0)
-                        {
-                            <span>$0</span>
-                        }
-                        else
-                        {
-                            <span>@plan.MonthlyPrice.ToString("C0")</span>
-                            <span class="fs-6 text-muted">/month</span>
-                        }
+
+                    <p class="mb-0">@plan.Description</p>
+
+                    <div>
+                        <div class="app-price">
+                            @(plan.MonthlyPrice == 0 ? "$0" : plan.MonthlyPrice.ToString("C0"))
+                        </div>
+                        <div class="small visually-muted mt-1">@(plan.MonthlyPrice == 0 ? "No monthly charge" : "Per month")</div>
                     </div>
-                    <ul class="list-unstyled text-muted mb-4">
+
+                    <ul class="app-feature-list">
                         <li>Project limit: @plan.ProjectLimitDisplay</li>
                         <li>Monthly tokens: @plan.MonthlyTokenLimitDisplay</li>
-                        <li>LLM models: @string.Join(", ", plan.AllowedLlmModels)</li>
-                        <li>Billing: @(plan.RequiresPayment ? "Monthly Stripe subscription" : "Free monthly allowance")</li>
+                        <li>Models: @string.Join(", ", plan.AllowedLlmModels)</li>
+                        <li>Billing: @(plan.RequiresPayment ? "Stripe subscription" : "Free monthly allowance")</li>
                         <li>Currency: @plan.Currency</li>
-                        @if (plan.RequiresPayment)
+                        @if (plan.RequiresPayment && !plan.IsPaymentConfigured)
                         {
-                            <li>Payment: Stripe Checkout</li>
-                            @if (!plan.IsPaymentConfigured)
-                            {
-                                <li class="text-warning">Stripe price id missing</li>
-                            }
+                            <li>Stripe price id still needs configuration</li>
                         }
                     </ul>
 
@@ -74,9 +72,9 @@
                         {
                             <form method="post">
                                 <input type="hidden" name="planCode" value="@plan.Code" />
-                                <button class="btn @(isCurrentPlan ? "btn-outline-primary" : "btn-primary") w-100"
+                                <button class="btn @(isCurrentPlan ? "btn-outline-secondary" : "btn-primary") w-100"
                                         disabled="@(isCurrentPlan || !plan.IsPaymentConfigured)">
-                                    @(isCurrentPlan ? "Selected" : plan.RequiresPayment ? "Subscribe with Stripe" : "Select free package")
+                                    @(isCurrentPlan ? "Selected" : plan.RequiresPayment ? "Subscribe with Stripe" : "Select free plan")
                                 </button>
                             </form>
                         }
@@ -85,8 +83,8 @@
                             <a class="btn btn-primary w-100" asp-page="/Account/Register">Create account</a>
                         }
                     </div>
-                </div>
-            </div>
+                </article>
+            }
         </div>
-    }
-</div>
+    </div>
+</section>

@@ -2,163 +2,119 @@
 @model IndexModel
 @{
     ViewData["Title"] = "Project Dashboard";
-    var allowedModels = Model.CurrentUsage?.AllowedLlmModels ?? Array.Empty<string>();
+    ViewData["UseBuilderLayout"] = true;
+    var defaultModel = Model.CurrentUsage?.AllowedLlmModels.FirstOrDefault() ?? string.Empty;
     var projectLimitDisplay = Model.CurrentPlan?.ProjectLimitDisplay ?? "Not configured";
     var tokenLimitDisplay = Model.CurrentUsage?.MonthlyTokenLimitDisplay ?? "Not configured";
-    var remainingTokensDisplay = Model.CurrentUsage?.RemainingTokensDisplay ?? "Not configured";
 }
 
-<section class="dashboard-shell py-4">
-    <div class="container-xl">
-        <div class="dashboard-hero mb-4">
-            <div>
-                <p class="builder-eyebrow mb-2">Project dashboard</p>
-                <h1 class="display-6 fw-bold mb-2">Manage your NanoAgent projects</h1>
-                <p class="text-muted mb-0">Create projects, rename or delete existing projects, and keep plan limits visible before opening the workspace.</p>
+<section class="app-page dashboard-shell">
+    <div class="container-xl px-3 px-lg-4">
+        <div class="app-page-header dashboard-list-header">
+            <div class="app-page-copy">
+                <p class="app-kicker mb-1">Dashboard</p>
+                <h1>Your projects</h1>
+                <p class="mb-0">Create a project fast, then open it straight in the workspace.</p>
             </div>
             <div class="dashboard-hero-actions">
-                <a class="btn btn-primary" asp-page="/Workspace">Open workspace</a>
-                <a class="btn btn-outline-secondary" asp-page="/Plans">Upgrade plan</a>
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createProjectModal">New project</button>
             </div>
         </div>
 
         @if (!ViewData.ModelState.IsValid)
         {
-            <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-3"></div>
         }
 
-        <div class="dashboard-metrics-grid mb-4">
+        <div class="dashboard-metrics-grid dashboard-metrics-grid-compact">
             <article class="dashboard-metric-card">
-                <span class="dashboard-metric-label">Current package</span>
+                <span class="dashboard-metric-label">Plan</span>
                 <strong>@(Model.CurrentSubscription?.PlanName ?? Model.CurrentPlan?.Name ?? "Free")</strong>
-                <span class="text-muted small">Database: @Model.DatabaseInfo.Provider</span>
+                <span class="small visually-muted">Database: @Model.DatabaseInfo.Provider</span>
             </article>
 
             <article class="dashboard-metric-card">
                 <span class="dashboard-metric-label">Projects</span>
                 <strong>@Model.Projects.Count / @projectLimitDisplay</strong>
-                <div class="progress builder-progress mt-2" role="progressbar" aria-label="Project limit usage" aria-valuenow="@Model.ProjectLimitUsagePercent" aria-valuemin="0" aria-valuemax="100">
-                    <div class="progress-bar" style="width: @Model.ProjectLimitUsagePercent%"></div>
-                </div>
             </article>
 
             <article class="dashboard-metric-card">
-                <span class="dashboard-metric-label">Monthly token usage</span>
+                <span class="dashboard-metric-label">Tokens</span>
                 <strong>@(Model.CurrentUsage?.UsedTokens.ToString("N0") ?? "0") / @tokenLimitDisplay</strong>
-                <div class="progress builder-progress mt-2" role="progressbar" aria-label="Token usage" aria-valuenow="@Model.TokenUsagePercent" aria-valuemin="0" aria-valuemax="100">
-                    <div class="progress-bar" style="width: @Model.TokenUsagePercent%"></div>
-                </div>
-                <span class="text-muted small">Remaining: @remainingTokensDisplay</span>
             </article>
+        </div>
 
-            <article class="dashboard-metric-card">
-                <span class="dashboard-metric-label">Allowed LLM models</span>
-                <div class="dashboard-pill-row mt-2">
-                    @foreach (var modelName in allowedModels)
+        <section class="dashboard-card">
+            @if (Model.Projects.Count == 0)
+            {
+                <div class="dashboard-empty-state">
+                    <h2 class="h4 mb-2">No projects yet</h2>
+                    <p class="mb-3">Create your first project to open it in the workspace.</p>
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createProjectModal">Create project</button>
+                </div>
+            }
+            else
+            {
+                <div class="dashboard-project-list">
+                    @foreach (var project in Model.Projects)
                     {
-                        <span class="dashboard-pill">@modelName</span>
+                        <article class="dashboard-project-card">
+                            <div class="dashboard-project-main">
+                                <div>
+                                    <h2 class="h5 mb-1">@project.Name</h2>
+                                    <div class="small visually-muted">Model: @project.LlmModel</div>
+                                    <div class="small visually-muted">Created: @project.CreatedAtUtc.ToLocalTime().ToString("g")</div>
+                                    @if (User.IsInRole("Admin"))
+                                    {
+                                        <div class="small visually-muted">Owner: @project.OwnerUserId</div>
+                                    }
+                                </div>
+                                <a class="btn btn-sm btn-primary" asp-page="/Workspace" asp-route-projectId="@project.Id">Open</a>
+                            </div>
+
+                            <div class="dashboard-project-actions">
+                                <form method="post" asp-page-handler="Rename" class="dashboard-rename-form">
+                                    <input type="hidden" name="projectId" value="@project.Id" />
+                                    <input name="name" class="form-control form-control-sm builder-input" value="@project.Name" aria-label="New project name" />
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary">Rename</button>
+                                </form>
+                                <form method="post" asp-page-handler="Delete" onsubmit="return confirm('Delete this project?');">
+                                    <input type="hidden" name="projectId" value="@project.Id" />
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                </form>
+                            </div>
+                        </article>
                     }
                 </div>
-            </article>
-        </div>
-
-        <div class="dashboard-grid">
-            <aside class="dashboard-card dashboard-create-card">
-                <div class="mb-3">
-                    <p class="builder-eyebrow mb-1">Create project</p>
-                    <h2 class="h4 mb-1">Start a new app</h2>
-                    <p class="text-muted small mb-0">Project creation enforces your SaaS package project quota and LLM model limits.</p>
-                </div>
-
-                <form method="post" asp-page-handler="Create">
-                    <div class="mb-3">
-                        <label asp-for="CreateInput.Name" class="form-label"></label>
-                        <input asp-for="CreateInput.Name" class="form-control builder-input" placeholder="Example: Support Agent" />
-                        <span asp-validation-for="CreateInput.Name" class="text-danger small"></span>
-                    </div>
-
-                    <div class="mb-3">
-                        <label asp-for="CreateInput.Description" class="form-label"></label>
-                        <textarea asp-for="CreateInput.Description" class="form-control builder-input" rows="5" placeholder="Describe what this project should build or automate."></textarea>
-                        <span asp-validation-for="CreateInput.Description" class="text-danger small"></span>
-                    </div>
-
-                    <div class="mb-3">
-                        <label asp-for="CreateInput.LlmModel" class="form-label"></label>
-                        <select asp-for="CreateInput.LlmModel" class="form-select builder-input">
-                            @foreach (var modelName in allowedModels)
-                            {
-                                <option value="@modelName">@modelName</option>
-                            }
-                        </select>
-                        <span asp-validation-for="CreateInput.LlmModel" class="text-danger small"></span>
-                        <div class="form-text">Available models are based on your package.</div>
-                    </div>
-
-                    <button type="submit" class="btn btn-primary w-100">Create project</button>
-                </form>
-            </aside>
-
-            <section class="dashboard-card">
-                <div class="d-flex align-items-start justify-content-between gap-3 mb-3">
-                    <div>
-                        <p class="builder-eyebrow mb-1">Projects</p>
-                        <h2 class="h4 mb-1">Rename, delete, or open</h2>
-                        <p class="text-muted small mb-0">Each project keeps the LLM model selected at creation time.</p>
-                    </div>
-                    <span class="badge text-bg-light">@Model.Projects.Count total</span>
-                </div>
-
-                @if (Model.Projects.Count == 0)
-                {
-                    <div class="dashboard-empty-state">
-                        <h3 class="h5">No projects yet</h3>
-                        <p class="text-muted mb-0">Create your first project to unlock the workspace shell with chat, files, editor placeholder, logs, and preview.</p>
-                    </div>
-                }
-                else
-                {
-                    <div class="dashboard-project-list">
-                        @foreach (var project in Model.Projects)
-                        {
-                            <article class="dashboard-project-card">
-                                <div class="dashboard-project-main">
-                                    <div>
-                                        <h3 class="h5 mb-1">@project.Name</h3>
-                                        <div class="text-muted small">Model: @project.LlmModel</div>
-                                        <div class="text-muted small">Created: @project.CreatedAtUtc.ToLocalTime().ToString("g")</div>
-                                        @if (User.IsInRole("Admin"))
-                                        {
-                                            <div class="text-muted small">Owner: @project.OwnerUserId</div>
-                                        }
-                                    </div>
-                                    <a class="btn btn-sm btn-outline-primary" asp-page="/Workspace" asp-route-projectId="@project.Id">Open workspace</a>
-                                </div>
-
-                                @if (!string.IsNullOrWhiteSpace(project.Description))
-                                {
-                                    <p class="dashboard-project-description">@project.Description</p>
-                                }
-
-                                <div class="dashboard-project-actions">
-                                    <form method="post" asp-page-handler="Rename" class="dashboard-rename-form">
-                                        <input type="hidden" name="projectId" value="@project.Id" />
-                                        <input name="name" class="form-control form-control-sm builder-input" value="@project.Name" aria-label="New project name" />
-                                        <button type="submit" class="btn btn-sm btn-outline-secondary">Rename</button>
-                                    </form>
-                                    <form method="post" asp-page-handler="Delete" onsubmit="return confirm('Delete this project?');">
-                                        <input type="hidden" name="projectId" value="@project.Id" />
-                                        <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
-                                    </form>
-                                </div>
-                            </article>
-                        }
-                    </div>
-                }
-            </section>
-        </div>
+            }
+        </section>
     </div>
 </section>
+
+<div class="modal fade" id="createProjectModal" tabindex="-1" aria-labelledby="createProjectModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="post" asp-page-handler="Create">
+                <div class="modal-header">
+                    <h2 class="modal-title fs-5" id="createProjectModalLabel">New project</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <input asp-for="CreateInput.LlmModel" type="hidden" value="@defaultModel" />
+                    <div>
+                        <label asp-for="CreateInput.Name" class="form-label"></label>
+                        <input asp-for="CreateInput.Name" class="form-control builder-input" placeholder="Project name" />
+                        <span asp-validation-for="CreateInput.Name" class="text-danger small"></span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create and open</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
