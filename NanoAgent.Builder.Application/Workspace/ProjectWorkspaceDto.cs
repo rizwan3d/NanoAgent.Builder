@@ -11,4 +11,7 @@ public sealed record ProjectWorkspaceDto(
     IReadOnlyList<GeneratedArtifactDto> Artifacts,
     TokenUsageDto TokenUsage,
     IReadOnlyList<string> AllowedModels,
-    Guid? SelectedFileId);
+    Guid? SelectedFileId,
+    string WorkspaceRootPath,
+    string InstallCommand,
+    string RunCommand);

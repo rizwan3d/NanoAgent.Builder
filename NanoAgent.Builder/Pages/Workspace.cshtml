@@ -168,6 +168,10 @@
                                     <span>Editor</span>
                                     <span class="workspace-editor-meta">@(selectedFile?.UpdatedAtUtc.ToLocalTime().ToString("g") ?? "No file selected")</span>
                                 </div>
+                                <div class="px-3 py-2 small visually-muted border-bottom">
+                                    Workspace root: <code>@Model.Workspace.WorkspaceRootPath</code><br />
+                                    Run the app from that folder with <code>@Model.Workspace.InstallCommand</code> then <code>@Model.Workspace.RunCommand</code>.
+                                </div>
                                 <form method="post" asp-page-handler="Save" asp-route-projectId="@Model.SelectedProject?.Id" class="workspace-editor-placeholder" aria-label="Monaco code editor">
                                     <div class="workspace-tabbar">
                                         <span id="workspaceActiveFileLabel">@(selectedFile?.Path ?? "No file selected")</span>

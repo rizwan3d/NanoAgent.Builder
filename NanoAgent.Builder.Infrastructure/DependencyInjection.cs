@@ -10,6 +10,7 @@ using NanoAgent.Builder.Infrastructure.Data.Repositories;
 using NanoAgent.Builder.Infrastructure.Database;
 using NanoAgent.Builder.Infrastructure.Identity;
 using NanoAgent.Builder.Infrastructure.Payments;
+using NanoAgent.Builder.Infrastructure.Workspaces;
 
 namespace NanoAgent.Builder.Infrastructure;
 
@@ -38,6 +39,20 @@ public static class DependencyInjection
 
         services.Configure<DatabaseOptions>(configuration.GetSection(DatabaseOptions.SectionName));
         services.Configure<SeedAdminOptions>(configuration.GetSection(SeedAdminOptions.SectionName));
+        services.Configure<ProjectWorkspaceOptions>(options =>
+        {
+            var configuredOptions = configuration
+                .GetSection(ProjectWorkspaceOptions.SectionName)
+                .Get<ProjectWorkspaceOptions>() ?? new ProjectWorkspaceOptions();
+
+            var configuredRootPath = string.IsNullOrWhiteSpace(configuredOptions.RootPath)
+                ? ProjectWorkspaceOptions.DefaultRootPath
+                : configuredOptions.RootPath.Trim();
+
+            options.RootPath = Path.IsPathRooted(configuredRootPath)
+                ? Path.GetFullPath(configuredRootPath)
+                : Path.GetFullPath(Path.Combine(contentRootPath, configuredRootPath));
+        });
         services.Configure<StripeOptions>(configuration.GetSection(StripeOptions.SectionName));
 
         services.AddDbContext<BuilderDbContext>(options =>
@@ -77,6 +92,7 @@ public static class DependencyInjection
         services.AddScoped<IUserSubscriptionRepository, EfUserSubscriptionRepository>();
         services.AddScoped<IUserTokenUsageRepository, EfUserTokenUsageRepository>();
         services.AddScoped<IProjectStorageRepository, EfProjectStorageRepository>();
+        services.AddScoped<IProjectWorkspaceFileSystem, ProjectWorkspaceFileSystem>();
         services.AddScoped<IApplicationUserReadRepository, IdentityUserReadRepository>();
         services.AddScoped<IPaymentGateway, StripePaymentGateway>();
         services.AddScoped<IStripeWebhookHandler, StripeWebhookHandler>();

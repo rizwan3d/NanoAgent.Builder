@@ -12,6 +12,7 @@ internal sealed class AgentProjectService : IAgentProjectService
     private readonly IProjectQuotaService _quotaService;
     private readonly ITokenUsageService _tokenUsageService;
     private readonly IProjectStorageRepository _projectStorage;
+    private readonly IProjectWorkspaceFileSystem _workspaceFileSystem;
     private readonly IUnitOfWork _unitOfWork;
 
     public AgentProjectService(
@@ -20,6 +21,7 @@ internal sealed class AgentProjectService : IAgentProjectService
         IProjectQuotaService quotaService,
         ITokenUsageService tokenUsageService,
         IProjectStorageRepository projectStorage,
+        IProjectWorkspaceFileSystem workspaceFileSystem,
         IUnitOfWork unitOfWork)
     {
         _currentUser = currentUser;
@@ -27,6 +29,7 @@ internal sealed class AgentProjectService : IAgentProjectService
         _quotaService = quotaService;
         _tokenUsageService = tokenUsageService;
         _projectStorage = projectStorage;
+        _workspaceFileSystem = workspaceFileSystem;
         _unitOfWork = unitOfWork;
     }
 
@@ -53,6 +56,10 @@ internal sealed class AgentProjectService : IAgentProjectService
         await _projects.AddAsync(project, cancellationToken);
         await SeedProjectStorageAsync(project, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _workspaceFileSystem.EnsureProjectWorkspaceAsync(
+            project,
+            await _projectStorage.ListFilesAsync(project.Id, cancellationToken),
+            cancellationToken);
 
         return MapToDto(project);
     }

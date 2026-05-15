@@ -11,6 +11,7 @@ internal sealed class ProjectWorkspaceService : IProjectWorkspaceService
     private readonly ICurrentUserContext _currentUser;
     private readonly IAgentProjectRepository _projects;
     private readonly IProjectStorageRepository _storage;
+    private readonly IProjectWorkspaceFileSystem _workspaceFileSystem;
     private readonly ITokenUsageService _tokenUsageService;
     private readonly IUnitOfWork _unitOfWork;
 
@@ -18,12 +19,14 @@ internal sealed class ProjectWorkspaceService : IProjectWorkspaceService
         ICurrentUserContext currentUser,
         IAgentProjectRepository projects,
         IProjectStorageRepository storage,
+        IProjectWorkspaceFileSystem workspaceFileSystem,
         ITokenUsageService tokenUsageService,
         IUnitOfWork unitOfWork)
     {
         _currentUser = currentUser;
         _projects = projects;
         _storage = storage;
+        _workspaceFileSystem = workspaceFileSystem;
         _tokenUsageService = tokenUsageService;
         _unitOfWork = unitOfWork;
     }
@@ -115,6 +118,7 @@ internal sealed class ProjectWorkspaceService : IProjectWorkspaceService
                 generatedFile.Content),
             cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _workspaceFileSystem.WriteFileAsync(project, generatedFile, cancellationToken);
 
         return await BuildWorkspaceAsync(project, usage, generatedFile.Id, cancellationToken);
     }
@@ -139,6 +143,7 @@ internal sealed class ProjectWorkspaceService : IProjectWorkspaceService
 
         file.UpdateContent(request.Content);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _workspaceFileSystem.WriteFileAsync(project, file, cancellationToken);
 
         var usage = await _tokenUsageService.GetCurrentUsageForUserAsync(userId, cancellationToken);
         return await BuildWorkspaceAsync(project, usage, file.Id, cancellationToken);
@@ -155,6 +160,7 @@ internal sealed class ProjectWorkspaceService : IProjectWorkspaceService
         var runs = await _storage.ListRunsAsync(project.Id, cancellationToken: cancellationToken);
         var artifacts = await _storage.ListArtifactsAsync(project.Id, cancellationToken: cancellationToken);
         var resolvedSelectedFileId = ResolveSelectedFileId(files, selectedFileId);
+        await _workspaceFileSystem.EnsureProjectWorkspaceAsync(project, files, cancellationToken);
 
         return new ProjectWorkspaceDto(
             MapProject(project),
@@ -164,7 +170,10 @@ internal sealed class ProjectWorkspaceService : IProjectWorkspaceService
             artifacts.Select(MapArtifact).ToList(),
             usage,
             usage.AllowedLlmModels,
-            resolvedSelectedFileId);
+            resolvedSelectedFileId,
+            _workspaceFileSystem.GetProjectRootPath(project),
+            "npm install",
+            "npm run dev");
     }
 
     private async Task<AgentProject> GetOwnedOrAdminProjectAsync(Guid projectId, CancellationToken cancellationToken)
