@@ -12,6 +12,9 @@ EXPOSE 8081
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
+COPY ["NanoAgent.Builder.Domain/NanoAgent.Builder.Domain.csproj", "NanoAgent.Builder.Domain/"]
+COPY ["NanoAgent.Builder.Application/NanoAgent.Builder.Application.csproj", "NanoAgent.Builder.Application/"]
+COPY ["NanoAgent.Builder.Infrastructure/NanoAgent.Builder.Infrastructure.csproj", "NanoAgent.Builder.Infrastructure/"]
 COPY ["NanoAgent.Builder/NanoAgent.Builder.csproj", "NanoAgent.Builder/"]
 RUN dotnet restore "./NanoAgent.Builder/NanoAgent.Builder.csproj"
 COPY . .

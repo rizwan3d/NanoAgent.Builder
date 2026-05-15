@@ -1,3 +1,6 @@
 <Solution>
+  <Project Path="NanoAgent.Builder.Domain/NanoAgent.Builder.Domain.csproj" />
+  <Project Path="NanoAgent.Builder.Application/NanoAgent.Builder.Application.csproj" />
+  <Project Path="NanoAgent.Builder.Infrastructure/NanoAgent.Builder.Infrastructure.csproj" />
   <Project Path="NanoAgent.Builder/NanoAgent.Builder.csproj" />
 </Solution>
