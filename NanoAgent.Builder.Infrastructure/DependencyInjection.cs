@@ -76,6 +76,7 @@ public static class DependencyInjection
         services.AddScoped<ISaasPlanRepository, EfSaasPlanRepository>();
         services.AddScoped<IUserSubscriptionRepository, EfUserSubscriptionRepository>();
         services.AddScoped<IUserTokenUsageRepository, EfUserTokenUsageRepository>();
+        services.AddScoped<IProjectStorageRepository, EfProjectStorageRepository>();
         services.AddScoped<IApplicationUserReadRepository, IdentityUserReadRepository>();
         services.AddScoped<IPaymentGateway, StripePaymentGateway>();
         services.AddScoped<IStripeWebhookHandler, StripeWebhookHandler>();

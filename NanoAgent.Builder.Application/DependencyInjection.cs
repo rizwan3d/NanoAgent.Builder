@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using NanoAgent.Builder.Application.Admin;
 using NanoAgent.Builder.Application.Projects;
 using NanoAgent.Builder.Application.Saas;
+using NanoAgent.Builder.Application.Workspace;
 
 namespace NanoAgent.Builder.Application;
 
@@ -16,6 +17,7 @@ public static class DependencyInjection
         services.AddScoped<IProjectQuotaService, ProjectQuotaService>();
         services.AddScoped<ITokenUsageService, TokenUsageService>();
         services.AddScoped<IAdminDashboardService, AdminDashboardService>();
+        services.AddScoped<IProjectWorkspaceService, ProjectWorkspaceService>();
 
         return services;
     }

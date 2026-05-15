@@ -2,41 +2,51 @@
 @model WorkspaceModel
 @{
     ViewData["Title"] = "Workspace";
-    ViewData["UseBuilderLayout"] = true;
-    var defaultPreviewUrl = Url.Page("/Plans") ?? "/Plans";
+    var defaultPreviewUrl = "/Plans";
+    var allowedModels = Model.Workspace?.AllowedModels ?? Model.CurrentUsage?.AllowedLlmModels ?? Array.Empty<string>();
+    var selectedFile = Model.Workspace?.Files.FirstOrDefault();
+    var monacoLanguage = selectedFile?.Language ?? "typescript";
+    var monacoContent = selectedFile?.Content ?? "// Create a project file to load Monaco content.";
     var tokenUsagePercent = Model.CurrentUsage is null || Model.CurrentUsage.MonthlyTokenLimit == -1
         ? 0
         : Math.Min(100, (int)Math.Round(Model.CurrentUsage.UsedTokens * 100d / Model.CurrentUsage.MonthlyTokenLimit));
 }
 
-<div class="workspace-shell">
-    <aside class="workspace-chat-panel">
+<div class="builder-shell workspace-shell">
+    <aside class="builder-chat-panel workspace-chat-panel">
         <div class="builder-panel-header">
             <div>
-                <p class="builder-eyebrow mb-1">Chat panel</p>
-                <h1 class="builder-title mb-0">@Model.SelectedProjectName</h1>
+                <p class="builder-eyebrow mb-1">Workspace</p>
+                <h1 class="builder-title mb-1">@Model.SelectedProjectName</h1>
+                <p class="text-muted small mb-0">Chat is stored in <code>ProjectMessages</code> and each request creates a <code>ProjectRuns</code> row.</p>
             </div>
-            <a class="btn btn-sm btn-outline-secondary" asp-page="/Index">Dashboard</a>
+            <span class="builder-status-pill">Storage on</span>
         </div>
 
-        <div asp-validation-summary="ModelOnly" class="text-danger small"></div>
+        @if (!ViewData.ModelState.IsValid)
+        {
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+        }
 
-        <div class="builder-quota-card">
-            <div class="builder-quota-row">
-                <span>Package</span>
-                <strong>@(Model.CurrentSubscription?.PlanName ?? Model.CurrentUsage?.PlanName ?? "Free")</strong>
+        <div class="workspace-plan-card">
+            <div class="d-flex justify-content-between align-items-start gap-3">
+                <div>
+                    <div class="builder-eyebrow mb-1">Plan limits</div>
+                    <strong>@(Model.CurrentSubscription?.PlanName ?? Model.CurrentUsage?.PlanName ?? "Free")</strong>
+                </div>
+                <a class="btn btn-sm btn-outline-secondary" asp-page="/Billing">Billing</a>
             </div>
+
             @if (Model.CurrentUsage is not null)
             {
-                <div class="builder-quota-row">
-                    <span>Tokens</span>
-                    <strong>@Model.CurrentUsage.UsedTokens.ToString("N0") / @Model.CurrentUsage.MonthlyTokenLimitDisplay</strong>
+                <div class="mt-3 small text-muted">
+                    @Model.CurrentUsage.UsedTokens.ToString("N0") / @Model.CurrentUsage.MonthlyTokenLimitDisplay tokens used
                 </div>
                 <div class="progress builder-progress mt-2" role="progressbar" aria-label="Monthly token usage" aria-valuenow="@tokenUsagePercent" aria-valuemin="0" aria-valuemax="100">
                     <div class="progress-bar" style="width: @tokenUsagePercent%"></div>
                 </div>
                 <div class="dashboard-pill-row mt-3">
-                    @foreach (var modelName in Model.CurrentUsage.AllowedLlmModels)
+                    @foreach (var modelName in allowedModels)
                     {
                         <span class="dashboard-pill">@modelName</span>
                     }
@@ -44,27 +54,52 @@
             }
         </div>
 
-        <div class="builder-chat-feed workspace-chat-feed" aria-label="Chat messages placeholder">
-            <div class="builder-message builder-message-user">
-                <span class="builder-avatar">U</span>
-                <div>
-                    <div class="builder-message-label">You</div>
-                    <p>Build a SaaS app with auth, Stripe billing, monthly tokens, model limits, and project dashboards.</p>
+        <div class="builder-chat-feed workspace-chat-feed" aria-label="Project chat messages">
+            @if (Model.Workspace?.Messages.Count > 0)
+            {
+                @foreach (var message in Model.Workspace.Messages)
+                {
+                    var isUser = string.Equals(message.Role, "user", StringComparison.OrdinalIgnoreCase);
+                    <div class="builder-message @(isUser ? "builder-message-user" : "builder-message-ai")">
+                        <span class="builder-avatar @(isUser ? string.Empty : "builder-avatar-ai")">@(isUser ? "U" : "N")</span>
+                        <div>
+                            <div class="builder-message-label">
+                                @(isUser ? "You" : "NanoAgent")
+                                <span class="text-muted fw-normal"> · @message.LlmModel · @(message.InputTokens + message.OutputTokens) tokens</span>
+                            </div>
+                            <p>@message.Content</p>
+                        </div>
+                    </div>
+                }
+            }
+            else
+            {
+                <div class="builder-message builder-message-ai">
+                    <span class="builder-avatar builder-avatar-ai">N</span>
+                    <div>
+                        <div class="builder-message-label">NanoAgent</div>
+                        <p>No project messages yet. Send a prompt to store it, enforce model entitlements, and record token usage.</p>
+                    </div>
                 </div>
-            </div>
-            <div class="builder-message builder-message-ai">
-                <span class="builder-avatar builder-avatar-ai">N</span>
-                <div>
-                    <div class="builder-message-label">NanoAgent</div>
-                    <p>The workspace shell is ready. A future generator can stream changes into the code tab, logs, and preview panel.</p>
-                </div>
-            </div>
+            }
         </div>
 
-        <div class="builder-composer" aria-label="Chat composer placeholder">
-            <textarea class="form-control builder-input" rows="3" placeholder="Ask NanoAgent to change the app..." disabled></textarea>
-            <button class="btn btn-dark" type="button" disabled>Send</button>
-        </div>
+        @if (Model.SelectedProject is not null)
+        {
+            <form method="post" asp-page-handler="Send" asp-route-projectId="@Model.SelectedProject.Id" class="builder-composer" aria-label="Project chat composer">
+                <div class="d-grid gap-2">
+                    <select asp-for="SendInput.LlmModel" class="form-select builder-input" aria-label="LLM model">
+                        @foreach (var modelName in allowedModels)
+                        {
+                            <option value="@modelName">@modelName</option>
+                        }
+                    </select>
+                    <textarea asp-for="SendInput.Message" class="form-control builder-input" rows="3" placeholder="Ask NanoAgent to change the app..."></textarea>
+                    <span asp-validation-for="SendInput.Message" class="text-danger small"></span>
+                </div>
+                <button class="btn btn-dark align-self-end" type="submit">Send</button>
+            </form>
+        }
     </aside>
 
     <main class="workspace-main-panel">
@@ -96,11 +131,11 @@
         {
             <section class="workspace-empty-card">
                 <h3 class="h4">Create a project first</h3>
-                <p class="text-muted">The workspace opens against a saved project. Create one from the dashboard to activate project-specific context.</p>
+                <p class="text-muted">The workspace opens against a saved project. Create one from the dashboard to activate project-specific storage.</p>
                 <a class="btn btn-primary" asp-page="/Index">Go to dashboard</a>
             </section>
         }
-        else
+        else if (Model.Workspace is not null)
         {
             <section class="workspace-tabs-card" aria-label="Workspace tabs">
                 <div class="workspace-tab-header" role="tablist" aria-label="Workspace panels">
@@ -135,65 +170,90 @@
                         <div class="workspace-code-layout">
                             <section class="workspace-file-tree-panel">
                                 <div class="workspace-panel-heading">
-                                    <span>File tree</span>
-                                    <span class="builder-status-pill builder-status-muted">Placeholder</span>
+                                    <span>ProjectFiles</span>
+                                    <span class="builder-status-pill builder-status-muted">DB-backed</span>
                                 </div>
                                 <div class="builder-file-tree workspace-file-tree">
                                     <div class="builder-tree-title">@Model.SelectedProjectName</div>
-                                    <div>▾ app</div>
-                                    <div class="ps-3">layout.tsx</div>
-                                    <div class="ps-3">page.tsx</div>
-                                    <div>▾ components</div>
-                                    <div class="ps-3">Header.tsx</div>
-                                    <div class="ps-3">PricingCards.tsx</div>
-                                    <div>▾ server</div>
-                                    <div class="ps-3">auth.ts</div>
-                                    <div class="ps-3">billing.ts</div>
+                                    @if (Model.Workspace.Files.Count == 0)
+                                    {
+                                        <div class="text-muted small">No files stored yet.</div>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var file in Model.Workspace.Files)
+                                        {
+                                            <div title="@file.Path">@file.Path</div>
+                                        }
+                                    }
+                                </div>
+
+                                <div class="workspace-artifact-list mt-3">
+                                    <div class="workspace-panel-heading">
+                                        <span>GeneratedArtifacts</span>
+                                        <span class="builder-status-pill builder-status-muted">DB-backed</span>
+                                    </div>
+                                    @if (Model.Workspace.Artifacts.Count == 0)
+                                    {
+                                        <div class="text-muted small">No generated artifacts yet.</div>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var artifact in Model.Workspace.Artifacts)
+                                        {
+                                            <div class="workspace-artifact-item">
+                                                <strong>@artifact.Name</strong>
+                                                <span>@artifact.ArtifactType</span>
+                                            </div>
+                                        }
+                                    }
                                 </div>
                             </section>
 
                             <section class="workspace-editor-panel">
                                 <div class="workspace-panel-heading">
                                     <span>Code editor</span>
-                                    <span class="builder-status-pill builder-status-muted">Monaco placeholder</span>
+                                    <span class="builder-status-pill builder-status-muted">Monaco</span>
                                 </div>
-                                <div class="workspace-editor-placeholder" aria-label="Monaco code editor placeholder">
+                                <div class="workspace-editor-placeholder" aria-label="Monaco code editor">
                                     <div class="workspace-tabbar">
-                                        <span>page.tsx</span>
-                                        <span>pricing.ts</span>
-                                        <span>agent.config.json</span>
+                                        @if (Model.Workspace.Files.Count == 0)
+                                        {
+                                            <span>No file selected</span>
+                                        }
+                                        else
+                                        {
+                                            @foreach (var file in Model.Workspace.Files.Take(3))
+                                            {
+                                                <span>@file.Path</span>
+                                            }
+                                        }
                                     </div>
-                                    <div id="workspaceMonacoEditor" class="workspace-monaco-editor" data-language="typescript" aria-label="Monaco editor"></div>
-                                    <textarea id="workspaceMonacoSeed" class="visually-hidden" aria-hidden="true" readonly>// Monaco editor placeholder only. A full IDE is intentionally not implemented yet.
-// A future generator can replace this buffer with selected project files.
-
-type Plan = {
-  name: string;
-  monthlyTokens: number;
-  allowedModels: string[];
-};
-
-const currentProject = {
-  name: '@Model.SelectedProjectName',
-  model: '@(Model.SelectedProject?.LlmModel ?? "gpt-4o-mini")',
-};
-
-export default function GeneratedApp() {
-  return &lt;main&gt;Preview-ready SaaS app shell&lt;/main&gt;;
-}</textarea>
+                                    <div id="workspaceMonacoEditor" class="workspace-monaco-editor" data-language="@monacoLanguage" aria-label="Monaco editor"></div>
+                                    <textarea id="workspaceMonacoSeed" class="visually-hidden" aria-hidden="true" readonly>@monacoContent</textarea>
                                 </div>
                             </section>
 
                             <section class="workspace-logs-panel">
                                 <div class="workspace-panel-heading">
-                                    <span>Logs</span>
-                                    <span class="builder-status-pill builder-status-muted">Placeholder</span>
+                                    <span>ProjectRuns</span>
+                                    <span class="builder-status-pill builder-status-muted">DB-backed</span>
                                 </div>
                                 <div class="workspace-log-lines">
-                                    <div><span>[system]</span> Workspace loaded for @Model.SelectedProjectName.</div>
-                                    <div><span>[usage]</span> Model limit: @(Model.SelectedProject?.LlmModel ?? "none").</div>
-                                    <div><span>[editor]</span> Monaco is loaded as a placeholder editor surface.</div>
-                                    <div><span>[preview]</span> Preview is the default tab.</div>
+                                    @if (Model.Workspace.Runs.Count == 0)
+                                    {
+                                        <div><span>[system]</span> No runs yet. Send a chat message to queue one.</div>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var run in Model.Workspace.Runs)
+                                        {
+                                            <div>
+                                                <span>[@run.Status]</span>
+                                                @run.RequestedModel · @run.InputTokens input tokens · @run.StartedAtUtc.ToLocalTime().ToString("g")
+                                            </div>
+                                        }
+                                    }
                                 </div>
                             </section>
                         </div>
@@ -205,6 +265,7 @@ export default function GeneratedApp() {
 </div>
 
 @section Scripts {
+    <partial name="_ValidationScriptsPartial" />
     <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.min.js"></script>
     <script>
         if (document.querySelector('[data-workspace-pane="code"].active')) {

@@ -15,6 +15,14 @@ public sealed class BuilderDbContext : IdentityDbContext<ApplicationUser>
 
     public DbSet<AgentProject> AgentProjects => Set<AgentProject>();
 
+    public DbSet<ProjectFile> ProjectFiles => Set<ProjectFile>();
+
+    public DbSet<ProjectMessage> ProjectMessages => Set<ProjectMessage>();
+
+    public DbSet<ProjectRun> ProjectRuns => Set<ProjectRun>();
+
+    public DbSet<GeneratedArtifact> GeneratedArtifacts => Set<GeneratedArtifact>();
+
     public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
 
     public DbSet<UserSubscription> UserSubscriptions => Set<UserSubscription>();
@@ -60,6 +68,156 @@ public sealed class BuilderDbContext : IdentityDbContext<ApplicationUser>
                 .IsRequired();
 
             entity.HasIndex(project => project.OwnerUserId);
+        });
+
+
+        modelBuilder.Entity<ProjectFile>(entity =>
+        {
+            entity.ToTable("ProjectFiles");
+            entity.HasKey(file => file.Id);
+
+            entity.Property(file => file.ProjectId)
+                .IsRequired();
+
+            entity.Property(file => file.Path)
+                .IsRequired()
+                .HasMaxLength(500);
+
+            entity.Property(file => file.Language)
+                .HasMaxLength(100);
+
+            entity.Property(file => file.Content)
+                .IsRequired();
+
+            entity.Property(file => file.CreatedAtUtc)
+                .IsRequired();
+
+            entity.Property(file => file.UpdatedAtUtc)
+                .IsRequired();
+
+            entity.HasOne(file => file.Project)
+                .WithMany()
+                .HasForeignKey(file => file.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(file => new { file.ProjectId, file.Path })
+                .IsUnique();
+        });
+
+        modelBuilder.Entity<ProjectMessage>(entity =>
+        {
+            entity.ToTable("ProjectMessages");
+            entity.HasKey(message => message.Id);
+
+            entity.Property(message => message.ProjectId)
+                .IsRequired();
+
+            entity.Property(message => message.Role)
+                .IsRequired()
+                .HasMaxLength(50);
+
+            entity.Property(message => message.Content)
+                .IsRequired();
+
+            entity.Property(message => message.LlmModel)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            entity.Property(message => message.InputTokens)
+                .IsRequired();
+
+            entity.Property(message => message.OutputTokens)
+                .IsRequired();
+
+            entity.Property(message => message.CreatedAtUtc)
+                .IsRequired();
+
+            entity.HasOne(message => message.Project)
+                .WithMany()
+                .HasForeignKey(message => message.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(message => new { message.ProjectId, message.CreatedAtUtc });
+        });
+
+        modelBuilder.Entity<ProjectRun>(entity =>
+        {
+            entity.ToTable("ProjectRuns");
+            entity.HasKey(run => run.Id);
+
+            entity.Property(run => run.ProjectId)
+                .IsRequired();
+
+            entity.Property(run => run.Status)
+                .IsRequired()
+                .HasMaxLength(50);
+
+            entity.Property(run => run.RequestedModel)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            entity.Property(run => run.Prompt)
+                .HasMaxLength(8000);
+
+            entity.Property(run => run.InputTokens)
+                .IsRequired();
+
+            entity.Property(run => run.OutputTokens)
+                .IsRequired();
+
+            entity.Property(run => run.StartedAtUtc)
+                .IsRequired();
+
+            entity.Property(run => run.CompletedAtUtc);
+
+            entity.Property(run => run.ErrorMessage)
+                .HasMaxLength(2000);
+
+            entity.HasOne(run => run.Project)
+                .WithMany()
+                .HasForeignKey(run => run.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(run => new { run.ProjectId, run.StartedAtUtc });
+            entity.HasIndex(run => run.Status);
+        });
+
+        modelBuilder.Entity<GeneratedArtifact>(entity =>
+        {
+            entity.ToTable("GeneratedArtifacts");
+            entity.HasKey(artifact => artifact.Id);
+
+            entity.Property(artifact => artifact.ProjectId)
+                .IsRequired();
+
+            entity.Property(artifact => artifact.Name)
+                .IsRequired()
+                .HasMaxLength(200);
+
+            entity.Property(artifact => artifact.ArtifactType)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            entity.Property(artifact => artifact.Path)
+                .HasMaxLength(500);
+
+            entity.Property(artifact => artifact.Content);
+
+            entity.Property(artifact => artifact.CreatedAtUtc)
+                .IsRequired();
+
+            entity.HasOne(artifact => artifact.Project)
+                .WithMany()
+                .HasForeignKey(artifact => artifact.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(artifact => artifact.ProjectRun)
+                .WithMany()
+                .HasForeignKey(artifact => artifact.ProjectRunId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasIndex(artifact => new { artifact.ProjectId, artifact.CreatedAtUtc });
+            entity.HasIndex(artifact => artifact.ProjectRunId);
         });
 
         modelBuilder.Entity<SubscriptionPlan>(entity =>

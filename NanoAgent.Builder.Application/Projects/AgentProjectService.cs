@@ -11,6 +11,7 @@ internal sealed class AgentProjectService : IAgentProjectService
     private readonly IAgentProjectRepository _projects;
     private readonly IProjectQuotaService _quotaService;
     private readonly ITokenUsageService _tokenUsageService;
+    private readonly IProjectStorageRepository _projectStorage;
     private readonly IUnitOfWork _unitOfWork;
 
     public AgentProjectService(
@@ -18,12 +19,14 @@ internal sealed class AgentProjectService : IAgentProjectService
         IAgentProjectRepository projects,
         IProjectQuotaService quotaService,
         ITokenUsageService tokenUsageService,
+        IProjectStorageRepository projectStorage,
         IUnitOfWork unitOfWork)
     {
         _currentUser = currentUser;
         _projects = projects;
         _quotaService = quotaService;
         _tokenUsageService = tokenUsageService;
+        _projectStorage = projectStorage;
         _unitOfWork = unitOfWork;
     }
 
@@ -48,6 +51,7 @@ internal sealed class AgentProjectService : IAgentProjectService
         var project = new AgentProject(userId, request.Name, request.Description, request.LlmModel);
 
         await _projects.AddAsync(project, cancellationToken);
+        await SeedProjectStorageAsync(project, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return MapToDto(project);
@@ -69,6 +73,73 @@ internal sealed class AgentProjectService : IAgentProjectService
 
         _projects.Remove(project);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+
+    private async Task SeedProjectStorageAsync(AgentProject project, CancellationToken cancellationToken)
+    {
+        await _projectStorage.AddFileAsync(
+            new ProjectFile(
+                project.Id,
+                "README.md",
+                "markdown",
+                $"""
+                # {project.Name}
+
+                This project is ready for NanoAgent workspace storage.
+
+                - Chat messages are stored in `ProjectMessages`.
+                - Files are stored in `ProjectFiles`.
+                - Build/generation runs are stored in `ProjectRuns`.
+                - Generated outputs are stored in `GeneratedArtifacts`.
+                """),
+            cancellationToken);
+
+        await _projectStorage.AddFileAsync(
+            new ProjectFile(
+                project.Id,
+                "src/App.tsx",
+                "typescript",
+                """
+                export default function App() {
+                  return (
+                    <main className="app-shell">
+                      <h1>NanoAgent generated app</h1>
+                      <p>Use the chat panel to request changes. This editor is backed by project file storage.</p>
+                    </main>
+                  );
+                }
+                """),
+            cancellationToken);
+
+        await _projectStorage.AddFileAsync(
+            new ProjectFile(
+                project.Id,
+                "agent.config.json",
+                "json",
+                $$"""
+                {
+                  "projectId": "{{project.Id}}",
+                  "llmModel": "{{project.LlmModel}}",
+                  "storage": {
+                    "files": "ProjectFiles",
+                    "messages": "ProjectMessages",
+                    "runs": "ProjectRuns",
+                    "artifacts": "GeneratedArtifacts"
+                  }
+                }
+                """),
+            cancellationToken);
+
+        await _projectStorage.AddArtifactAsync(
+            new GeneratedArtifact(
+                project.Id,
+                null,
+                "Initial workspace artifact",
+                "workspace-note",
+                "README.md",
+                "Starter project storage was created."),
+            cancellationToken);
     }
 
     private async Task<AgentProject> GetOwnedOrAdminProjectAsync(Guid projectId, CancellationToken cancellationToken)
