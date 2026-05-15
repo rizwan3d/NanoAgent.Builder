@@ -1,0 +1,23 @@
+@page
+@model NanoAgent.Builder.Pages.Billing.SuccessModel
+@{
+    ViewData["Title"] = "Payment complete";
+}
+
+<div class="card shadow-sm">
+    <div class="card-body p-4">
+        <p class="text-uppercase text-muted fw-semibold mb-2">Stripe Checkout</p>
+        <h1 class="display-6 fw-bold">Payment complete</h1>
+        <p class="lead">Stripe will confirm the subscription through the webhook endpoint. Your package will update once the webhook is received.</p>
+
+        @if (Model.CurrentSubscription is not null)
+        {
+            <div class="alert alert-info">
+                Current package in the app database: <strong>@Model.CurrentSubscription.PlanName</strong> (@Model.CurrentSubscription.Status).
+            </div>
+        }
+
+        <a class="btn btn-primary" asp-page="/Billing/Index">View billing</a>
+        <a class="btn btn-outline-secondary" asp-page="/Index">Go to app</a>
+    </div>
+</div>

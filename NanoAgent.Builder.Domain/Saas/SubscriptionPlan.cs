@@ -16,13 +16,15 @@ public sealed class SubscriptionPlan : Entity
         decimal monthlyPrice,
         string currency,
         int projectLimit,
-        int displayOrder)
+        int displayOrder,
+        string? stripePriceId = null)
     {
         SetCode(code);
         Rename(name);
         UpdateDescription(description);
         SetPricing(tier, monthlyPrice, currency);
         SetProjectLimit(projectLimit);
+        ConfigureStripePrice(stripePriceId);
         DisplayOrder = displayOrder;
         IsActive = true;
         CreatedAtUtc = DateTimeOffset.UtcNow;
@@ -43,6 +45,8 @@ public sealed class SubscriptionPlan : Entity
     public int ProjectLimit { get; private set; }
 
     public int DisplayOrder { get; private set; }
+
+    public string? StripePriceId { get; private set; }
 
     public bool IsActive { get; private set; }
 
@@ -71,6 +75,21 @@ public sealed class SubscriptionPlan : Entity
         }
 
         Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+    }
+
+    public void ConfigureStripePrice(string? stripePriceId)
+    {
+        if (stripePriceId is { Length: > 200 })
+        {
+            throw new DomainException("Stripe price id cannot be longer than 200 characters.");
+        }
+
+        if (Tier == SubscriptionTier.Free && !string.IsNullOrWhiteSpace(stripePriceId))
+        {
+            throw new DomainException("Free plans should not have a Stripe price id.");
+        }
+
+        StripePriceId = string.IsNullOrWhiteSpace(stripePriceId) ? null : stripePriceId.Trim();
     }
 
     public void Activate() => IsActive = true;

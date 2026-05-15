@@ -8,6 +8,7 @@ using NanoAgent.Builder.Application.Security;
 using NanoAgent.Builder.Domain.Saas;
 using NanoAgent.Builder.Infrastructure.Data;
 using NanoAgent.Builder.Infrastructure.Identity;
+using NanoAgent.Builder.Infrastructure.Payments;
 
 namespace NanoAgent.Builder.Infrastructure.Database;
 
@@ -29,13 +30,21 @@ public static class DatabaseInitializationExtensions
             await context.Database.EnsureCreatedAsync(cancellationToken);
         }
 
-        await SeedSaasPlansAsync(context, cancellationToken);
+        var stripeOptions = configuration
+            .GetSection(StripeOptions.SectionName)
+            .Get<StripeOptions>() ?? new StripeOptions();
+
+        await SeedSaasPlansAsync(context, stripeOptions, cancellationToken);
         await SeedIdentityAsync(scope.ServiceProvider, configuration, context, cancellationToken);
     }
 
-    private static async Task SeedSaasPlansAsync(BuilderDbContext context, CancellationToken cancellationToken)
+    private static async Task SeedSaasPlansAsync(
+        BuilderDbContext context,
+        StripeOptions stripeOptions,
+        CancellationToken cancellationToken)
     {
-        if (!await context.SubscriptionPlans.AnyAsync(cancellationToken))
+        var existingPlans = await context.SubscriptionPlans.ToListAsync(cancellationToken);
+        if (existingPlans.Count == 0)
         {
             var seedPlans = new[]
             {
@@ -56,7 +65,8 @@ public static class DatabaseInitializationExtensions
                     19,
                     "USD",
                     25,
-                    2),
+                    2,
+                    stripeOptions.GetPriceId(SaasPlanCodes.Starter)),
                 new SubscriptionPlan(
                     SaasPlanCodes.Pro,
                     "Pro",
@@ -65,13 +75,30 @@ public static class DatabaseInitializationExtensions
                     49,
                     "USD",
                     100,
-                    3)
+                    3,
+                    stripeOptions.GetPriceId(SaasPlanCodes.Pro))
             };
 
             await context.SubscriptionPlans.AddRangeAsync(seedPlans, cancellationToken);
-
             await context.SaveChangesAsync(cancellationToken);
+            return;
         }
+
+        var starterPriceId = stripeOptions.GetPriceId(SaasPlanCodes.Starter);
+        var starter = existingPlans.FirstOrDefault(plan => plan.Code == SaasPlanCodes.Starter);
+        if (starter is not null && !string.IsNullOrWhiteSpace(starterPriceId))
+        {
+            starter.ConfigureStripePrice(starterPriceId);
+        }
+
+        var proPriceId = stripeOptions.GetPriceId(SaasPlanCodes.Pro);
+        var pro = existingPlans.FirstOrDefault(plan => plan.Code == SaasPlanCodes.Pro);
+        if (pro is not null && !string.IsNullOrWhiteSpace(proPriceId))
+        {
+            pro.ConfigureStripePrice(proPriceId);
+        }
+
+        await context.SaveChangesAsync(cancellationToken);
     }
 
     private static async Task SeedIdentityAsync(

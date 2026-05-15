@@ -63,6 +63,11 @@ internal sealed class SaasSubscriptionService : ISaasSubscriptionService
             throw new DomainException("The selected SaaS package is not available.");
         }
 
+        if (plan.Tier == SubscriptionTier.Paid)
+        {
+            throw new DomainException("Paid packages must be selected through Stripe Checkout.");
+        }
+
         var subscription = await _subscriptions.GetCurrentForUserAsync(userId, cancellationToken);
         if (subscription is null)
         {
@@ -72,6 +77,7 @@ internal sealed class SaasSubscriptionService : ISaasSubscriptionService
         else
         {
             subscription.ChangePlan(plan.Id);
+            subscription.AttachStripeSubscription(null, null, null, null);
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -80,7 +86,7 @@ internal sealed class SaasSubscriptionService : ISaasSubscriptionService
         return MapSubscription(subscription);
     }
 
-    private static SaasPlanDto MapPlan(SubscriptionPlan plan) =>
+    internal static SaasPlanDto MapPlan(SubscriptionPlan plan) =>
         new(
             plan.Id,
             plan.Code,
@@ -91,9 +97,10 @@ internal sealed class SaasSubscriptionService : ISaasSubscriptionService
             plan.Currency,
             plan.ProjectLimit,
             plan.IsActive,
-            plan.DisplayOrder);
+            plan.DisplayOrder,
+            plan.StripePriceId);
 
-    private static UserSubscriptionDto MapSubscription(UserSubscription subscription)
+    internal static UserSubscriptionDto MapSubscription(UserSubscription subscription)
     {
         var plan = subscription.Plan ?? throw new DomainException("The subscription package could not be loaded.");
 
@@ -105,6 +112,9 @@ internal sealed class SaasSubscriptionService : ISaasSubscriptionService
             plan.Name,
             subscription.Status,
             subscription.StartedAtUtc,
-            subscription.EndsAtUtc);
+            subscription.EndsAtUtc,
+            subscription.StripeCustomerId,
+            subscription.StripeSubscriptionId,
+            subscription.CurrentPeriodEndsAtUtc);
     }
 }

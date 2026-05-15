@@ -23,6 +23,17 @@ public sealed class BuilderDbContext : IdentityDbContext<ApplicationUser>
     {
         base.OnModelCreating(modelBuilder);
 
+        modelBuilder.Entity<ApplicationUser>(entity =>
+        {
+            entity.Property(user => user.DisplayName)
+                .HasMaxLength(200);
+
+            entity.Property(user => user.StripeCustomerId)
+                .HasMaxLength(200);
+
+            entity.HasIndex(user => user.StripeCustomerId);
+        });
+
         modelBuilder.Entity<AgentProject>(entity =>
         {
             entity.ToTable("AgentProjects");
@@ -68,6 +79,9 @@ public sealed class BuilderDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(plan => plan.MonthlyPrice)
                 .HasPrecision(18, 2);
 
+            entity.Property(plan => plan.StripePriceId)
+                .HasMaxLength(200);
+
             entity.Property(plan => plan.IsActive)
                 .IsRequired();
 
@@ -76,6 +90,8 @@ public sealed class BuilderDbContext : IdentityDbContext<ApplicationUser>
 
             entity.HasIndex(plan => plan.Code)
                 .IsUnique();
+
+            entity.HasIndex(plan => plan.StripePriceId);
         });
 
         modelBuilder.Entity<UserSubscription>(entity =>
@@ -86,6 +102,15 @@ public sealed class BuilderDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(subscription => subscription.UserId)
                 .IsRequired()
                 .HasMaxLength(450);
+
+            entity.Property(subscription => subscription.StripeCustomerId)
+                .HasMaxLength(200);
+
+            entity.Property(subscription => subscription.StripeSubscriptionId)
+                .HasMaxLength(200);
+
+            entity.Property(subscription => subscription.StripePriceId)
+                .HasMaxLength(200);
 
             entity.Property(subscription => subscription.StartedAtUtc)
                 .IsRequired();
@@ -101,6 +126,8 @@ public sealed class BuilderDbContext : IdentityDbContext<ApplicationUser>
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasIndex(subscription => subscription.UserId);
+            entity.HasIndex(subscription => subscription.StripeSubscriptionId);
+            entity.HasIndex(subscription => subscription.StripeCustomerId);
         });
     }
 }

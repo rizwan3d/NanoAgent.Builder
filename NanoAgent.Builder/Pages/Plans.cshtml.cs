@@ -7,11 +7,15 @@ namespace NanoAgent.Builder.Pages;
 
 public sealed class PlansModel : PageModel
 {
+    private readonly IBillingCheckoutService _billingCheckoutService;
     private readonly ISaasSubscriptionService _subscriptionService;
 
-    public PlansModel(ISaasSubscriptionService subscriptionService)
+    public PlansModel(
+        ISaasSubscriptionService subscriptionService,
+        IBillingCheckoutService billingCheckoutService)
     {
         _subscriptionService = subscriptionService;
+        _billingCheckoutService = billingCheckoutService;
     }
 
     public IReadOnlyList<SaasPlanDto> Plans { get; private set; } = [];
@@ -32,8 +36,21 @@ public sealed class PlansModel : PageModel
 
         try
         {
-            await _subscriptionService.SubscribeCurrentUserAsync(planCode, cancellationToken);
-            TempData["StatusMessage"] = "Your SaaS package has been updated.";
+            var successUrl = BuildAbsolutePageUri("/Billing/Success");
+            var cancelUrl = BuildAbsolutePageUri("/Plans");
+
+            var result = await _billingCheckoutService.SelectPackageForCurrentUserAsync(
+                planCode,
+                successUrl,
+                cancelUrl,
+                cancellationToken);
+
+            if (result.RequiresRedirect && !string.IsNullOrWhiteSpace(result.RedirectUrl))
+            {
+                return Redirect(result.RedirectUrl);
+            }
+
+            TempData["StatusMessage"] = result.Message;
             return RedirectToPage();
         }
         catch (DomainException exception)
@@ -48,5 +65,16 @@ public sealed class PlansModel : PageModel
     {
         Plans = await _subscriptionService.ListPlansAsync(cancellationToken);
         CurrentSubscription = await _subscriptionService.GetCurrentSubscriptionAsync(cancellationToken);
+    }
+
+    private Uri BuildAbsolutePageUri(string page)
+    {
+        var url = Url.PageLink(page);
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            throw new DomainException($"Could not build URL for page {page}.");
+        }
+
+        return new Uri(url);
     }
 }

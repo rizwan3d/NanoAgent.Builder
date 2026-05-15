@@ -33,6 +33,10 @@ internal sealed class EfSaasPlanRepository : ISaasPlanRepository
     public Task<SubscriptionPlan?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         _context.SubscriptionPlans.FirstOrDefaultAsync(plan => plan.Id == id, cancellationToken);
 
+    public Task<SubscriptionPlan?> GetByStripePriceIdAsync(string stripePriceId, CancellationToken cancellationToken = default) =>
+        _context.SubscriptionPlans
+            .FirstOrDefaultAsync(plan => plan.StripePriceId == stripePriceId.Trim(), cancellationToken);
+
     public async Task AddAsync(SubscriptionPlan plan, CancellationToken cancellationToken = default) =>
         await _context.SubscriptionPlans.AddAsync(plan, cancellationToken);
 }

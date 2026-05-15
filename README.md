@@ -21,7 +21,9 @@ This solution is structured around project-level Clean Architecture, SOLID princ
 - New users are automatically assigned to the Free package.
 - The seeded admin is automatically assigned to the Pro package.
 - Project creation enforces the current user's SaaS package quota.
-- Admin dashboard shows users, roles, package status, and project usage.
+- Admin dashboard shows users, roles, package status, Stripe configuration, and project usage.
+- Stripe Checkout for paid packages and Stripe Billing Portal for paid users.
+- Stripe webhooks activate, update, mark past-due, and cancel paid subscriptions in the same application database.
 
 ## Default admin account
 
@@ -36,6 +38,42 @@ Configured in `appsettings.json` under `SeedAdmin`:
 ```
 
 Change this password before using the project anywhere beyond local development.
+
+
+## Stripe billing
+
+Paid packages use Stripe Checkout in subscription mode. The app keeps a single database; Stripe customer/subscription ids are stored on the existing Identity user and `UserSubscriptions` tables.
+
+Configure Stripe with user secrets or environment variables instead of committing real keys:
+
+```bash
+dotnet user-secrets set "Stripe:SecretKey" "sk_test_..." --project NanoAgent.Builder/NanoAgent.Builder.csproj
+dotnet user-secrets set "Stripe:WebhookSecret" "whsec_..." --project NanoAgent.Builder/NanoAgent.Builder.csproj
+dotnet user-secrets set "Stripe:Prices:starter" "price_..." --project NanoAgent.Builder/NanoAgent.Builder.csproj
+dotnet user-secrets set "Stripe:Prices:pro" "price_..." --project NanoAgent.Builder/NanoAgent.Builder.csproj
+```
+
+Local webhook testing with the Stripe CLI:
+
+```bash
+stripe listen --forward-to https://localhost:5001/billing/stripe-webhook
+```
+
+Copy the printed `whsec_...` value into `Stripe:WebhookSecret`.
+
+Checkout flow:
+
+1. `/Plans` keeps Free local and redirects paid packages to Stripe Checkout.
+2. Stripe redirects back to `/Billing/Success`.
+3. The authoritative activation happens through `/billing/stripe-webhook`.
+4. `/Billing` shows the current package and opens the Stripe Billing Portal when a Stripe customer exists.
+
+The webhook endpoint currently handles:
+
+- `checkout.session.completed`
+- `customer.subscription.created`
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
 
 ## SOLID boundaries
 
@@ -87,6 +125,7 @@ Then open the app and use:
 - User signup: `/Account/Register`
 - Login: `/Account/Login`
 - Packages: `/Plans`
+- Billing: `/Billing`
 - Admin dashboard: `/Admin`
 
 To switch provider without editing JSON:

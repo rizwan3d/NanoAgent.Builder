@@ -3,10 +3,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using NanoAgent.Builder.Application.Abstractions;
+using NanoAgent.Builder.Application.Saas;
 using NanoAgent.Builder.Infrastructure.Data;
 using NanoAgent.Builder.Infrastructure.Data.Repositories;
 using NanoAgent.Builder.Infrastructure.Database;
 using NanoAgent.Builder.Infrastructure.Identity;
+using NanoAgent.Builder.Infrastructure.Payments;
 
 namespace NanoAgent.Builder.Infrastructure;
 
@@ -35,6 +37,7 @@ public static class DependencyInjection
 
         services.Configure<DatabaseOptions>(configuration.GetSection(DatabaseOptions.SectionName));
         services.Configure<SeedAdminOptions>(configuration.GetSection(SeedAdminOptions.SectionName));
+        services.Configure<StripeOptions>(configuration.GetSection(StripeOptions.SectionName));
 
         services.AddDbContext<BuilderDbContext>(options =>
         {
@@ -65,6 +68,8 @@ public static class DependencyInjection
         services.AddScoped<ISaasPlanRepository, EfSaasPlanRepository>();
         services.AddScoped<IUserSubscriptionRepository, EfUserSubscriptionRepository>();
         services.AddScoped<IApplicationUserReadRepository, IdentityUserReadRepository>();
+        services.AddScoped<IPaymentGateway, StripePaymentGateway>();
+        services.AddScoped<IStripeWebhookHandler, StripeWebhookHandler>();
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
         services.AddSingleton<IDatabaseInfoProvider>(
             new ConfiguredDatabaseInfoProvider(new DatabaseInfo(provider, connectionStringName)));

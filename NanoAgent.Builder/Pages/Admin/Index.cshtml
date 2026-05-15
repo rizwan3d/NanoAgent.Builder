@@ -27,7 +27,7 @@
         <h2 class="h4 mb-3">Packages</h2>
         <div class="table-responsive">
             <table class="table align-middle">
-                <thead><tr><th>Name</th><th>Tier</th><th>Price</th><th>Project limit</th><th>Status</th></tr></thead>
+                <thead><tr><th>Name</th><th>Tier</th><th>Price</th><th>Project limit</th><th>Stripe</th><th>Status</th></tr></thead>
                 <tbody>
                     @foreach (var plan in Model.Dashboard.Plans)
                     {
@@ -36,6 +36,7 @@
                             <td>@plan.Tier</td>
                             <td>@(plan.MonthlyPrice == 0 ? "$0" : plan.MonthlyPrice.ToString("C0")) / month</td>
                             <td>@(plan.ProjectLimit == -1 ? "Unlimited" : plan.ProjectLimit)</td>
+                            <td>@(plan.RequiresPayment ? (plan.IsPaymentConfigured ? "Configured" : "Missing price id") : "Not required")</td>
                             <td>@(plan.IsActive ? "Active" : "Inactive")</td>
                         </tr>
                     }

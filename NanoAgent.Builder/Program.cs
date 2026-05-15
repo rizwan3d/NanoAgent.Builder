@@ -1,5 +1,7 @@
 using NanoAgent.Builder.Application;
 using NanoAgent.Builder.Application.Abstractions;
+using NanoAgent.Builder.Application.Saas;
+using NanoAgent.Builder.Domain.Common;
 using NanoAgent.Builder.Infrastructure;
 using NanoAgent.Builder.Infrastructure.Database;
 using NanoAgent.Builder.Security;
@@ -16,6 +18,7 @@ public class Program
         {
             options.Conventions.AuthorizePage("/Index");
             options.Conventions.AuthorizeFolder("/Admin");
+            options.Conventions.AuthorizeFolder("/Billing");
         });
 
         builder.Services.AddHttpContextAccessor();
@@ -43,6 +46,24 @@ public class Program
         app.UseRouting();
         app.UseAuthentication();
         app.UseAuthorization();
+
+        app.MapPost("/billing/stripe-webhook", async (HttpRequest request, IStripeWebhookHandler webhookHandler, CancellationToken cancellationToken) =>
+        {
+            using var reader = new StreamReader(request.Body);
+            var payload = await reader.ReadToEndAsync(cancellationToken);
+            var signature = request.Headers["Stripe-Signature"].ToString();
+
+            try
+            {
+                await webhookHandler.HandleAsync(payload, signature, cancellationToken);
+                return Results.Ok();
+            }
+            catch (DomainException exception)
+            {
+                return Results.BadRequest(new { error = exception.Message });
+            }
+        })
+        .AllowAnonymous();
 
         app.MapStaticAssets();
         app.MapRazorPages()

@@ -11,6 +11,8 @@ public static class DependencyInjection
     {
         services.AddScoped<IAgentProjectService, AgentProjectService>();
         services.AddScoped<ISaasSubscriptionService, SaasSubscriptionService>();
+        services.AddScoped<IBillingCheckoutService, BillingCheckoutService>();
+        services.AddScoped<ISubscriptionProvisioningService, SubscriptionProvisioningService>();
         services.AddScoped<IProjectQuotaService, ProjectQuotaService>();
         services.AddScoped<IAdminDashboardService, AdminDashboardService>();
 

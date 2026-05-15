@@ -22,6 +22,13 @@ internal sealed class EfUserSubscriptionRepository : IUserSubscriptionRepository
                 subscription.EndsAtUtc == null,
                 cancellationToken);
 
+    public Task<UserSubscription?> GetByStripeSubscriptionIdAsync(string stripeSubscriptionId, CancellationToken cancellationToken = default) =>
+        _context.UserSubscriptions
+            .Include(subscription => subscription.Plan)
+            .FirstOrDefaultAsync(subscription =>
+                subscription.StripeSubscriptionId == stripeSubscriptionId.Trim(),
+                cancellationToken);
+
     public async Task<IReadOnlyList<UserSubscription>> ListCurrentAsync(CancellationToken cancellationToken = default) =>
         await _context.UserSubscriptions
             .AsNoTracking()

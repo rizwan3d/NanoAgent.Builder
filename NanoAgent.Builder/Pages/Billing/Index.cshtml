@@ -1,0 +1,52 @@
+@page
+@model NanoAgent.Builder.Pages.Billing.IndexModel
+@{
+    ViewData["Title"] = "Billing";
+}
+
+<div class="mb-4">
+    <p class="text-uppercase text-muted fw-semibold mb-2">Billing</p>
+    <h1 class="display-6 fw-bold">Manage billing</h1>
+    <p class="lead mb-0">Your billing state is stored in the single app database and synced from Stripe webhooks.</p>
+</div>
+
+<div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+<div class="card shadow-sm">
+    <div class="card-body p-4">
+        @if (Model.CurrentSubscription is null)
+        {
+            <p class="text-muted mb-3">No package is active for your account.</p>
+            <a class="btn btn-primary" asp-page="/Plans">Choose package</a>
+        }
+        else
+        {
+            <dl class="row mb-4">
+                <dt class="col-sm-3">Package</dt>
+                <dd class="col-sm-9">@Model.CurrentSubscription.PlanName</dd>
+
+                <dt class="col-sm-3">Status</dt>
+                <dd class="col-sm-9">@Model.CurrentSubscription.Status</dd>
+
+                <dt class="col-sm-3">Started</dt>
+                <dd class="col-sm-9">@Model.CurrentSubscription.StartedAtUtc.ToLocalTime().ToString("g")</dd>
+
+                @if (Model.CurrentSubscription.CurrentPeriodEndsAtUtc is not null)
+                {
+                    <dt class="col-sm-3">Current period ends</dt>
+                    <dd class="col-sm-9">@Model.CurrentSubscription.CurrentPeriodEndsAtUtc.Value.ToLocalTime().ToString("g")</dd>
+                }
+            </dl>
+
+            <div class="d-flex gap-2">
+                <a class="btn btn-primary" asp-page="/Plans">Change package</a>
+                @if (!string.IsNullOrWhiteSpace(Model.CurrentSubscription.StripeCustomerId))
+                {
+                    <form method="post" asp-page-handler="Portal">
+                        <button type="submit" class="btn btn-outline-primary">Open Stripe billing portal</button>
+                    </form>
+                }
+            </div>
+        }
+    </div>
+</div>

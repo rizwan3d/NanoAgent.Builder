@@ -12,4 +12,10 @@ public sealed record SaasPlanDto(
     string Currency,
     int ProjectLimit,
     bool IsActive,
-    int DisplayOrder);
+    int DisplayOrder,
+    string? StripePriceId)
+{
+    public bool RequiresPayment => Tier == SubscriptionTier.Paid;
+
+    public bool IsPaymentConfigured => !RequiresPayment || !string.IsNullOrWhiteSpace(StripePriceId);
+}

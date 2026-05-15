@@ -12,5 +12,7 @@ public interface ISaasPlanRepository
 
     Task<SubscriptionPlan?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
+    Task<SubscriptionPlan?> GetByStripePriceIdAsync(string stripePriceId, CancellationToken cancellationToken = default);
+
     Task AddAsync(SubscriptionPlan plan, CancellationToken cancellationToken = default);
 }

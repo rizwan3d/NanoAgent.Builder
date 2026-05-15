@@ -10,4 +10,7 @@ public sealed record UserSubscriptionDto(
     string PlanName,
     SubscriptionStatus Status,
     DateTimeOffset StartedAtUtc,
-    DateTimeOffset? EndsAtUtc);
+    DateTimeOffset? EndsAtUtc,
+    string? StripeCustomerId,
+    string? StripeSubscriptionId,
+    DateTimeOffset? CurrentPeriodEndsAtUtc);

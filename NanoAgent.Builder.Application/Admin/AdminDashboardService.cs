@@ -73,7 +73,8 @@ internal sealed class AdminDashboardService : IAdminDashboardService
                 plan.Currency,
                 plan.ProjectLimit,
                 plan.IsActive,
-                plan.DisplayOrder))
+                plan.DisplayOrder,
+                plan.StripePriceId))
             .ToList();
 
         return new AdminDashboardDto(

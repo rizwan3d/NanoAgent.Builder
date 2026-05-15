@@ -6,5 +6,7 @@ public sealed class ApplicationUser : IdentityUser
 {
     public string? DisplayName { get; set; }
 
+    public string? StripeCustomerId { get; set; }
+
     public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
 }
