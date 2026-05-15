@@ -17,6 +17,7 @@ public class Program
         builder.Services.AddRazorPages(options =>
         {
             options.Conventions.AuthorizePage("/Index");
+            options.Conventions.AuthorizePage("/Workspace");
             options.Conventions.AuthorizeFolder("/Admin");
             options.Conventions.AuthorizeFolder("/Billing");
         });

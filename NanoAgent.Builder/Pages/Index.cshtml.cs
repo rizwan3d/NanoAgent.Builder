@@ -27,8 +27,7 @@ public class IndexModel : PageModel
         _tokenUsageService = tokenUsageService;
     }
 
-    [BindProperty]
-    public CreateProjectInput Input { get; set; } = new();
+    public CreateProjectInput CreateInput { get; set; } = new();
 
     public IReadOnlyList<AgentProjectDto> Projects { get; private set; } = [];
 
@@ -38,15 +37,28 @@ public class IndexModel : PageModel
 
     public TokenUsageDto? CurrentUsage { get; private set; }
 
+    public SaasPlanDto? CurrentPlan { get; private set; }
+
+    public int ProjectLimitUsagePercent => CurrentPlan is null || CurrentPlan.ProjectLimit == -1
+        ? 0
+        : Math.Min(100, (int)Math.Round(Projects.Count * 100d / CurrentPlan.ProjectLimit));
+
+    public int TokenUsagePercent => CurrentUsage is null || CurrentUsage.MonthlyTokenLimit == -1
+        ? 0
+        : Math.Min(100, (int)Math.Round(CurrentUsage.UsedTokens * 100d / CurrentUsage.MonthlyTokenLimit));
+
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         await LoadPageDataAsync(cancellationToken);
-        Input.LlmModel = CurrentUsage?.AllowedLlmModels.FirstOrDefault() ?? string.Empty;
+        PrimeCreateInput();
     }
 
-    public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostCreateAsync(CancellationToken cancellationToken)
     {
-        if (!ModelState.IsValid)
+        CreateInput = new CreateProjectInput();
+        await TryUpdateModelAsync(CreateInput, nameof(CreateInput));
+
+        if (!TryValidateModel(CreateInput, nameof(CreateInput)))
         {
             await LoadPageDataAsync(cancellationToken);
             return Page();
@@ -55,7 +67,7 @@ public class IndexModel : PageModel
         try
         {
             await _projectService.CreateAsync(
-                new CreateAgentProjectRequest(Input.Name, Input.Description, Input.LlmModel),
+                new CreateAgentProjectRequest(CreateInput.Name, CreateInput.Description, CreateInput.LlmModel),
                 cancellationToken);
         }
         catch (DomainException exception)
@@ -68,18 +80,63 @@ public class IndexModel : PageModel
         return RedirectToPage();
     }
 
+    public async Task<IActionResult> OnPostRenameAsync(Guid projectId, string name, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _projectService.RenameAsync(new RenameAgentProjectRequest(projectId, name), cancellationToken);
+        }
+        catch (DomainException exception)
+        {
+            ModelState.AddModelError(string.Empty, exception.Message);
+            await LoadPageDataAsync(cancellationToken);
+            PrimeCreateInput();
+            return Page();
+        }
+
+        return RedirectToPage();
+    }
+
+    public async Task<IActionResult> OnPostDeleteAsync(Guid projectId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _projectService.DeleteAsync(projectId, cancellationToken);
+        }
+        catch (DomainException exception)
+        {
+            ModelState.AddModelError(string.Empty, exception.Message);
+            await LoadPageDataAsync(cancellationToken);
+            PrimeCreateInput();
+            return Page();
+        }
+
+        return RedirectToPage();
+    }
+
     private async Task LoadPageDataAsync(CancellationToken cancellationToken)
     {
         DatabaseInfo = _databaseInfoProvider.GetCurrent();
         CurrentSubscription = await _subscriptionService.GetCurrentSubscriptionAsync(cancellationToken);
         CurrentUsage = await _tokenUsageService.GetCurrentUsageForCurrentUserAsync(cancellationToken);
         Projects = await _projectService.ListAsync(cancellationToken);
+
+        var plans = await _subscriptionService.ListPlansAsync(cancellationToken);
+        CurrentPlan = CurrentSubscription is null
+            ? plans.FirstOrDefault(plan => string.Equals(plan.Code, SaasPlanCodes.Free, StringComparison.OrdinalIgnoreCase))
+            : plans.FirstOrDefault(plan => string.Equals(plan.Code, CurrentSubscription.PlanCode, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void PrimeCreateInput()
+    {
+        CreateInput.LlmModel = CurrentUsage?.AllowedLlmModels.FirstOrDefault() ?? string.Empty;
     }
 
     public sealed class CreateProjectInput
     {
         [Required]
         [StringLength(200)]
+        [Display(Name = "Project name")]
         public string Name { get; set; } = string.Empty;
 
         [StringLength(1000)]

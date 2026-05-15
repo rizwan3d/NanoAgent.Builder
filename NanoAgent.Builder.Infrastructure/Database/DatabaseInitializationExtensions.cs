@@ -25,9 +25,9 @@ public static class DatabaseInitializationExtensions
 
         var context = scope.ServiceProvider.GetRequiredService<BuilderDbContext>();
 
-        if (databaseOptions.EnsureCreated)
+        if (databaseOptions.ApplyMigrations)
         {
-            await context.Database.EnsureCreatedAsync(cancellationToken);
+            await context.Database.MigrateAsync(cancellationToken);
         }
 
         var stripeOptions = configuration

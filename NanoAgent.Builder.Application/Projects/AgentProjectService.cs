@@ -53,6 +53,47 @@ internal sealed class AgentProjectService : IAgentProjectService
         return MapToDto(project);
     }
 
+    public async Task<AgentProjectDto> RenameAsync(RenameAgentProjectRequest request, CancellationToken cancellationToken = default)
+    {
+        var project = await GetOwnedOrAdminProjectAsync(request.ProjectId, cancellationToken);
+
+        project.Rename(request.Name);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return MapToDto(project);
+    }
+
+    public async Task DeleteAsync(Guid projectId, CancellationToken cancellationToken = default)
+    {
+        var project = await GetOwnedOrAdminProjectAsync(projectId, cancellationToken);
+
+        _projects.Remove(project);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<AgentProject> GetOwnedOrAdminProjectAsync(Guid projectId, CancellationToken cancellationToken)
+    {
+        if (projectId == Guid.Empty)
+        {
+            throw new DomainException("Project id is required.");
+        }
+
+        var userId = RequireSignedInUser();
+        var project = await _projects.GetByIdAsync(projectId, cancellationToken);
+
+        if (project is null)
+        {
+            throw new DomainException("The selected project was not found.");
+        }
+
+        if (!_currentUser.IsAdmin && !string.Equals(project.OwnerUserId, userId, StringComparison.Ordinal))
+        {
+            throw new DomainException("You do not have permission to manage this project.");
+        }
+
+        return project;
+    }
+
     private string RequireSignedInUser()
     {
         if (!_currentUser.IsAuthenticated || string.IsNullOrWhiteSpace(_currentUser.UserId))

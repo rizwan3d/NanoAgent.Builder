@@ -26,9 +26,14 @@ internal sealed class EfAgentProjectRepository : IAgentProjectRepository
             .OrderByDescending(project => project.CreatedAtUtc)
             .ToListAsync(cancellationToken);
 
+    public Task<AgentProject?> GetByIdAsync(Guid projectId, CancellationToken cancellationToken = default) =>
+        _context.AgentProjects.FirstOrDefaultAsync(project => project.Id == projectId, cancellationToken);
+
     public Task<int> CountForOwnerAsync(string ownerUserId, CancellationToken cancellationToken = default) =>
         _context.AgentProjects.CountAsync(project => project.OwnerUserId == ownerUserId, cancellationToken);
 
     public async Task AddAsync(AgentProject project, CancellationToken cancellationToken = default) =>
         await _context.AgentProjects.AddAsync(project, cancellationToken);
+
+    public void Remove(AgentProject project) => _context.AgentProjects.Remove(project);
 }

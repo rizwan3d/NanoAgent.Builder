@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using NanoAgent.Builder.Application.Abstractions;
@@ -44,10 +45,17 @@ public static class DependencyInjection
             if (provider == SupportedDatabaseProviders.PostgreSql)
             {
                 options.UseNpgsql(connectionString);
-                return;
+            }
+            else
+            {
+                options.UseSqlite(connectionString);
             }
 
-            options.UseSqlite(connectionString);
+            if (databaseOptions.SuppressPendingModelChangesWarning)
+            {
+                options.ConfigureWarnings(warnings =>
+                    warnings.Ignore(RelationalEventId.PendingModelChangesWarning));
+            }
         });
 
         services

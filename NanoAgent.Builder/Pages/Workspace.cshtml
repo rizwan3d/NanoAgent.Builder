@@ -1,0 +1,214 @@
+@page
+@model WorkspaceModel
+@{
+    ViewData["Title"] = "Workspace";
+    ViewData["UseBuilderLayout"] = true;
+    var defaultPreviewUrl = Url.Page("/Plans") ?? "/Plans";
+    var tokenUsagePercent = Model.CurrentUsage is null || Model.CurrentUsage.MonthlyTokenLimit == -1
+        ? 0
+        : Math.Min(100, (int)Math.Round(Model.CurrentUsage.UsedTokens * 100d / Model.CurrentUsage.MonthlyTokenLimit));
+}
+
+<div class="workspace-shell">
+    <aside class="workspace-chat-panel">
+        <div class="builder-panel-header">
+            <div>
+                <p class="builder-eyebrow mb-1">Chat panel</p>
+                <h1 class="builder-title mb-0">@Model.SelectedProjectName</h1>
+            </div>
+            <a class="btn btn-sm btn-outline-secondary" asp-page="/Index">Dashboard</a>
+        </div>
+
+        <div asp-validation-summary="ModelOnly" class="text-danger small"></div>
+
+        <div class="builder-quota-card">
+            <div class="builder-quota-row">
+                <span>Package</span>
+                <strong>@(Model.CurrentSubscription?.PlanName ?? Model.CurrentUsage?.PlanName ?? "Free")</strong>
+            </div>
+            @if (Model.CurrentUsage is not null)
+            {
+                <div class="builder-quota-row">
+                    <span>Tokens</span>
+                    <strong>@Model.CurrentUsage.UsedTokens.ToString("N0") / @Model.CurrentUsage.MonthlyTokenLimitDisplay</strong>
+                </div>
+                <div class="progress builder-progress mt-2" role="progressbar" aria-label="Monthly token usage" aria-valuenow="@tokenUsagePercent" aria-valuemin="0" aria-valuemax="100">
+                    <div class="progress-bar" style="width: @tokenUsagePercent%"></div>
+                </div>
+                <div class="dashboard-pill-row mt-3">
+                    @foreach (var modelName in Model.CurrentUsage.AllowedLlmModels)
+                    {
+                        <span class="dashboard-pill">@modelName</span>
+                    }
+                </div>
+            }
+        </div>
+
+        <div class="builder-chat-feed workspace-chat-feed" aria-label="Chat messages placeholder">
+            <div class="builder-message builder-message-user">
+                <span class="builder-avatar">U</span>
+                <div>
+                    <div class="builder-message-label">You</div>
+                    <p>Build a SaaS app with auth, Stripe billing, monthly tokens, model limits, and project dashboards.</p>
+                </div>
+            </div>
+            <div class="builder-message builder-message-ai">
+                <span class="builder-avatar builder-avatar-ai">N</span>
+                <div>
+                    <div class="builder-message-label">NanoAgent</div>
+                    <p>The workspace shell is ready. A future generator can stream changes into the code tab, logs, and preview panel.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="builder-composer" aria-label="Chat composer placeholder">
+            <textarea class="form-control builder-input" rows="3" placeholder="Ask NanoAgent to change the app..." disabled></textarea>
+            <button class="btn btn-dark" type="button" disabled>Send</button>
+        </div>
+    </aside>
+
+    <main class="workspace-main-panel">
+        <div class="workspace-topbar">
+            <div>
+                <p class="builder-eyebrow mb-1">Workspace page</p>
+                <h2 class="builder-stage-title mb-0">Preview and Code tabs</h2>
+            </div>
+            <div class="workspace-project-switcher">
+                <span class="text-muted small">Project</span>
+                <select class="form-select form-select-sm builder-input" onchange="if (this.value) window.location.href = this.value;">
+                    @if (Model.Projects.Count == 0)
+                    {
+                        <option>No projects yet</option>
+                    }
+                    else
+                    {
+                        @foreach (var project in Model.Projects)
+                        {
+                            var url = Url.Page("/Workspace", values: new { projectId = project.Id });
+                            <option value="@url" selected="@(Model.SelectedProject?.Id == project.Id)">@project.Name</option>
+                        }
+                    }
+                </select>
+            </div>
+        </div>
+
+        @if (Model.Projects.Count == 0)
+        {
+            <section class="workspace-empty-card">
+                <h3 class="h4">Create a project first</h3>
+                <p class="text-muted">The workspace opens against a saved project. Create one from the dashboard to activate project-specific context.</p>
+                <a class="btn btn-primary" asp-page="/Index">Go to dashboard</a>
+            </section>
+        }
+        else
+        {
+            <section class="workspace-tabs-card" aria-label="Workspace tabs">
+                <div class="workspace-tab-header" role="tablist" aria-label="Workspace panels">
+                    <button type="button" class="workspace-main-tab active" role="tab" aria-selected="true" aria-controls="workspacePreviewTab" id="workspacePreviewTabButton" data-workspace-tab="preview">
+                        Preview
+                    </button>
+                    <button type="button" class="workspace-main-tab" role="tab" aria-selected="false" aria-controls="workspaceCodeTab" id="workspaceCodeTabButton" data-workspace-tab="code">
+                        Code
+                    </button>
+                </div>
+
+                <div class="workspace-tab-body">
+                    <section class="workspace-tab-pane active" id="workspacePreviewTab" role="tabpanel" aria-labelledby="workspacePreviewTabButton" data-workspace-pane="preview">
+                        <div class="workspace-preview-panel workspace-preview-panel-tabbed">
+                            <div class="workspace-panel-heading">
+                                <span>Preview panel</span>
+                                <span class="builder-status-pill builder-status-muted">Default tab</span>
+                            </div>
+                            <div class="builder-browser-toolbar">
+                                <button type="button" class="builder-icon-button" id="previewReloadButton" aria-label="Reload preview">↻</button>
+                                <div class="builder-address-bar">
+                                    <span class="builder-lock">⌁</span>
+                                    <input id="previewAddressInput" type="text" value="@defaultPreviewUrl" aria-label="Preview URL" />
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="previewGoButton">Go</button>
+                            </div>
+                            <iframe id="appPreviewFrame" class="builder-preview-frame workspace-preview-frame" title="Application preview placeholder" src="@defaultPreviewUrl"></iframe>
+                        </div>
+                    </section>
+
+                    <section class="workspace-tab-pane" id="workspaceCodeTab" role="tabpanel" aria-labelledby="workspaceCodeTabButton" data-workspace-pane="code" hidden>
+                        <div class="workspace-code-layout">
+                            <section class="workspace-file-tree-panel">
+                                <div class="workspace-panel-heading">
+                                    <span>File tree</span>
+                                    <span class="builder-status-pill builder-status-muted">Placeholder</span>
+                                </div>
+                                <div class="builder-file-tree workspace-file-tree">
+                                    <div class="builder-tree-title">@Model.SelectedProjectName</div>
+                                    <div>▾ app</div>
+                                    <div class="ps-3">layout.tsx</div>
+                                    <div class="ps-3">page.tsx</div>
+                                    <div>▾ components</div>
+                                    <div class="ps-3">Header.tsx</div>
+                                    <div class="ps-3">PricingCards.tsx</div>
+                                    <div>▾ server</div>
+                                    <div class="ps-3">auth.ts</div>
+                                    <div class="ps-3">billing.ts</div>
+                                </div>
+                            </section>
+
+                            <section class="workspace-editor-panel">
+                                <div class="workspace-panel-heading">
+                                    <span>Code editor</span>
+                                    <span class="builder-status-pill builder-status-muted">Monaco placeholder</span>
+                                </div>
+                                <div class="workspace-editor-placeholder" aria-label="Monaco code editor placeholder">
+                                    <div class="workspace-tabbar">
+                                        <span>page.tsx</span>
+                                        <span>pricing.ts</span>
+                                        <span>agent.config.json</span>
+                                    </div>
+                                    <div id="workspaceMonacoEditor" class="workspace-monaco-editor" data-language="typescript" aria-label="Monaco editor"></div>
+                                    <textarea id="workspaceMonacoSeed" class="visually-hidden" aria-hidden="true" readonly>// Monaco editor placeholder only. A full IDE is intentionally not implemented yet.
+// A future generator can replace this buffer with selected project files.
+
+type Plan = {
+  name: string;
+  monthlyTokens: number;
+  allowedModels: string[];
+};
+
+const currentProject = {
+  name: '@Model.SelectedProjectName',
+  model: '@(Model.SelectedProject?.LlmModel ?? "gpt-4o-mini")',
+};
+
+export default function GeneratedApp() {
+  return &lt;main&gt;Preview-ready SaaS app shell&lt;/main&gt;;
+}</textarea>
+                                </div>
+                            </section>
+
+                            <section class="workspace-logs-panel">
+                                <div class="workspace-panel-heading">
+                                    <span>Logs</span>
+                                    <span class="builder-status-pill builder-status-muted">Placeholder</span>
+                                </div>
+                                <div class="workspace-log-lines">
+                                    <div><span>[system]</span> Workspace loaded for @Model.SelectedProjectName.</div>
+                                    <div><span>[usage]</span> Model limit: @(Model.SelectedProject?.LlmModel ?? "none").</div>
+                                    <div><span>[editor]</span> Monaco is loaded as a placeholder editor surface.</div>
+                                    <div><span>[preview]</span> Preview is the default tab.</div>
+                                </div>
+                            </section>
+                        </div>
+                    </section>
+                </div>
+            </section>
+        }
+    </main>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.min.js"></script>
+    <script>
+        if (document.querySelector('[data-workspace-pane="code"].active')) {
+            window.initializeWorkspaceMonaco?.();
+        }
+    </script>
+}

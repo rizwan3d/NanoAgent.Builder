@@ -8,7 +8,11 @@ public interface IAgentProjectRepository
 
     Task<IReadOnlyList<AgentProject>> ListForOwnerAsync(string ownerUserId, CancellationToken cancellationToken = default);
 
+    Task<AgentProject?> GetByIdAsync(Guid projectId, CancellationToken cancellationToken = default);
+
     Task<int> CountForOwnerAsync(string ownerUserId, CancellationToken cancellationToken = default);
 
     Task AddAsync(AgentProject project, CancellationToken cancellationToken = default);
+
+    void Remove(AgentProject project);
 }
