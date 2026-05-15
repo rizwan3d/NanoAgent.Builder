@@ -10,4 +10,5 @@ public sealed record ProjectWorkspaceDto(
     IReadOnlyList<ProjectRunDto> Runs,
     IReadOnlyList<GeneratedArtifactDto> Artifacts,
     TokenUsageDto TokenUsage,
-    IReadOnlyList<string> AllowedModels);
+    IReadOnlyList<string> AllowedModels,
+    Guid? SelectedFileId);

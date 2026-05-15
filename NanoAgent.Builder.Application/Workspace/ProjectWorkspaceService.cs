@@ -8,8 +8,6 @@ namespace NanoAgent.Builder.Application.Workspace;
 
 internal sealed class ProjectWorkspaceService : IProjectWorkspaceService
 {
-    private const int EstimatedAssistantPlaceholderTokens = 0;
-
     private readonly ICurrentUserContext _currentUser;
     private readonly IAgentProjectRepository _projects;
     private readonly IProjectStorageRepository _storage;
@@ -36,7 +34,7 @@ internal sealed class ProjectWorkspaceService : IProjectWorkspaceService
         var project = await GetOwnedOrAdminProjectAsync(projectId, cancellationToken);
         var usage = await _tokenUsageService.GetCurrentUsageForUserAsync(userId, cancellationToken);
 
-        return await BuildWorkspaceAsync(project, usage, cancellationToken);
+        return await BuildWorkspaceAsync(project, usage, null, cancellationToken);
     }
 
     public async Task<ProjectWorkspaceDto> SubmitMessageAsync(
@@ -56,15 +54,19 @@ internal sealed class ProjectWorkspaceService : IProjectWorkspaceService
         var userId = RequireSignedInUser();
         var project = await GetOwnedOrAdminProjectAsync(request.ProjectId, cancellationToken);
         var selectedModel = string.IsNullOrWhiteSpace(request.LlmModel) ? project.LlmModel : request.LlmModel.Trim();
+        var existingFiles = await _storage.ListFilesAsync(project.Id, cancellationToken);
 
         await _tokenUsageService.EnsureModelAllowedAsync(userId, selectedModel, cancellationToken);
 
         var inputTokens = EstimateTokens(request.Message);
+        var generatedFilePath = BuildGeneratedFilePath(existingFiles);
+        var assistantResponse = $"Created `{generatedFilePath}` from your request. Open it in the Code tab to review or edit it manually.";
+        var outputTokens = EstimateTokens(assistantResponse);
         var usage = await _tokenUsageService.RecordUsageAsync(
             userId,
             selectedModel,
             inputTokens,
-            EstimatedAssistantPlaceholderTokens,
+            outputTokens,
             cancellationToken);
 
         var userMessage = new ProjectMessage(
@@ -77,37 +79,82 @@ internal sealed class ProjectWorkspaceService : IProjectWorkspaceService
 
         var run = new ProjectRun(
             project.Id,
-            "queued",
+            "running",
             selectedModel,
             request.Message,
             inputTokens,
             0);
 
+        var generatedFile = new ProjectFile(
+            project.Id,
+            generatedFilePath,
+            "markdown",
+            BuildGeneratedFileContent(project.Name, request.Message, selectedModel));
+
+        run.Complete(outputTokens);
+
         var systemMessage = new ProjectMessage(
             project.Id,
             "assistant",
-            "Request saved. A future generator can consume this run, generate files/artifacts, and update the preview.",
+            assistantResponse,
             selectedModel,
             0,
-            0);
+            outputTokens);
 
         await _storage.AddMessageAsync(userMessage, cancellationToken);
         await _storage.AddRunAsync(run, cancellationToken);
+        await _storage.AddFileAsync(generatedFile, cancellationToken);
         await _storage.AddMessageAsync(systemMessage, cancellationToken);
+        await _storage.AddArtifactAsync(
+            new GeneratedArtifact(
+                project.Id,
+                run.Id,
+                $"Generated file {generatedFile.Path}",
+                "generated-file",
+                generatedFile.Path,
+                generatedFile.Content),
+            cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return await BuildWorkspaceAsync(project, usage, cancellationToken);
+        return await BuildWorkspaceAsync(project, usage, generatedFile.Id, cancellationToken);
+    }
+
+    public async Task<ProjectWorkspaceDto> UpdateFileAsync(
+        UpdateProjectFileRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = RequireSignedInUser();
+        var project = await GetOwnedOrAdminProjectAsync(request.ProjectId, cancellationToken);
+
+        if (request.FileId == Guid.Empty)
+        {
+            throw new DomainException("A file must be selected before saving.");
+        }
+
+        var file = await _storage.GetFileAsync(project.Id, request.FileId, cancellationToken);
+        if (file is null)
+        {
+            throw new DomainException("The selected file was not found.");
+        }
+
+        file.UpdateContent(request.Content);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        var usage = await _tokenUsageService.GetCurrentUsageForUserAsync(userId, cancellationToken);
+        return await BuildWorkspaceAsync(project, usage, file.Id, cancellationToken);
     }
 
     private async Task<ProjectWorkspaceDto> BuildWorkspaceAsync(
         AgentProject project,
         TokenUsageDto usage,
+        Guid? selectedFileId,
         CancellationToken cancellationToken)
     {
         var files = await _storage.ListFilesAsync(project.Id, cancellationToken);
         var messages = await _storage.ListMessagesAsync(project.Id, cancellationToken: cancellationToken);
         var runs = await _storage.ListRunsAsync(project.Id, cancellationToken: cancellationToken);
         var artifacts = await _storage.ListArtifactsAsync(project.Id, cancellationToken: cancellationToken);
+        var resolvedSelectedFileId = ResolveSelectedFileId(files, selectedFileId);
 
         return new ProjectWorkspaceDto(
             MapProject(project),
@@ -116,7 +163,8 @@ internal sealed class ProjectWorkspaceService : IProjectWorkspaceService
             runs.Select(MapRun).ToList(),
             artifacts.Select(MapArtifact).ToList(),
             usage,
-            usage.AllowedLlmModels);
+            usage.AllowedLlmModels,
+            resolvedSelectedFileId);
     }
 
     private async Task<AgentProject> GetOwnedOrAdminProjectAsync(Guid projectId, CancellationToken cancellationToken)
@@ -156,6 +204,41 @@ internal sealed class ProjectWorkspaceService : IProjectWorkspaceService
     {
         var characters = string.IsNullOrWhiteSpace(text) ? 0 : text.Trim().Length;
         return Math.Max(1, (int)Math.Ceiling(characters / 4d));
+    }
+
+    private static Guid? ResolveSelectedFileId(IReadOnlyList<ProjectFile> files, Guid? selectedFileId)
+    {
+        if (selectedFileId.HasValue && files.Any(file => file.Id == selectedFileId.Value))
+        {
+            return selectedFileId.Value;
+        }
+
+        return files.FirstOrDefault()?.Id;
+    }
+
+    private static string BuildGeneratedFilePath(IReadOnlyList<ProjectFile> files)
+    {
+        var nextIndex = files.Count(file => file.Path.StartsWith("generated/", StringComparison.OrdinalIgnoreCase)) + 1;
+        return $"generated/run-{nextIndex:000}.md";
+    }
+
+    private static string BuildGeneratedFileContent(string projectName, string message, string model)
+    {
+        return $"""
+                # Generated Workspace Note
+
+                Project: {projectName}
+                Model: {model}
+                Created: {DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm:ss} UTC
+
+                ## User Request
+
+                {message.Trim()}
+
+                ## Suggested Next Step
+
+                Review this generated note, then update the app files in the workspace editor.
+                """;
     }
 
     private static AgentProjectDto MapProject(AgentProject project) =>

@@ -20,6 +20,10 @@ internal sealed class EfProjectStorageRepository : IProjectStorageRepository
             .OrderBy(file => file.Path)
             .ToListAsync(cancellationToken);
 
+    public async Task<ProjectFile?> GetFileAsync(Guid projectId, Guid fileId, CancellationToken cancellationToken = default) =>
+        await _context.ProjectFiles
+            .FirstOrDefaultAsync(file => file.ProjectId == projectId && file.Id == fileId, cancellationToken);
+
     public async Task<IReadOnlyList<ProjectMessage>> ListMessagesAsync(Guid projectId, int take = 50, CancellationToken cancellationToken = default) =>
         await _context.ProjectMessages
             .AsNoTracking()

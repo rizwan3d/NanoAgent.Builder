@@ -5,10 +5,14 @@
     ViewData["UseBuilderLayout"] = true;
     var defaultPreviewUrl = "/Plans";
     var allowedModels = Model.Workspace?.AllowedModels ?? Model.CurrentUsage?.AllowedLlmModels ?? Array.Empty<string>();
-    var selectedFile = Model.Workspace?.Files.FirstOrDefault();
+    var selectedFileId = Model.Workspace?.SelectedFileId;
+    var selectedFile = Model.Workspace?.Files.FirstOrDefault(file => file.Id == selectedFileId)
+        ?? Model.Workspace?.Files.FirstOrDefault();
     var monacoLanguage = selectedFile?.Language ?? "typescript";
     var monacoContent = selectedFile?.Content ?? "// Create a project file to load Monaco content.";
     var remainingTokens = Model.CurrentUsage?.RemainingTokensDisplay ?? "No usage data";
+    var isPreviewTabActive = string.Equals(Model.ActiveTab, "preview", StringComparison.OrdinalIgnoreCase);
+    var isCodeTabActive = string.Equals(Model.ActiveTab, "code", StringComparison.OrdinalIgnoreCase);
 }
 
 <div class="workspace-shell workspace-shell-simple">
@@ -101,16 +105,16 @@
         {
             <section class="workspace-tabs-card" aria-label="Workspace tabs">
                 <div class="workspace-tab-header" role="tablist" aria-label="Workspace panels">
-                    <button type="button" class="workspace-main-tab active" role="tab" aria-selected="true" aria-controls="workspacePreviewTab" id="workspacePreviewTabButton" data-workspace-tab="preview">
+                    <button type="button" class="workspace-main-tab @(isPreviewTabActive ? "active" : null)" role="tab" aria-selected="@(isPreviewTabActive ? "true" : "false")" aria-controls="workspacePreviewTab" id="workspacePreviewTabButton" data-workspace-tab="preview">
                         Preview
                     </button>
-                    <button type="button" class="workspace-main-tab" role="tab" aria-selected="false" aria-controls="workspaceCodeTab" id="workspaceCodeTabButton" data-workspace-tab="code">
+                    <button type="button" class="workspace-main-tab @(isCodeTabActive ? "active" : null)" role="tab" aria-selected="@(isCodeTabActive ? "true" : "false")" aria-controls="workspaceCodeTab" id="workspaceCodeTabButton" data-workspace-tab="code">
                         Code
                     </button>
                 </div>
 
                 <div class="workspace-tab-body">
-                    <section class="workspace-tab-pane active" id="workspacePreviewTab" role="tabpanel" aria-labelledby="workspacePreviewTabButton" data-workspace-pane="preview">
+                    <section class="workspace-tab-pane @(isPreviewTabActive ? "active" : null)" id="workspacePreviewTab" role="tabpanel" aria-labelledby="workspacePreviewTabButton" data-workspace-pane="preview" hidden="@(!isPreviewTabActive)">
                         <div class="workspace-preview-panel workspace-preview-panel-tabbed">
                             <div class="builder-browser-toolbar">
                                 <button type="button" class="builder-icon-button" id="previewReloadButton" aria-label="Reload preview">R</button>
@@ -123,7 +127,7 @@
                         </div>
                     </section>
 
-                    <section class="workspace-tab-pane" id="workspaceCodeTab" role="tabpanel" aria-labelledby="workspaceCodeTabButton" data-workspace-pane="code" hidden>
+                    <section class="workspace-tab-pane @(isCodeTabActive ? "active" : null)" id="workspaceCodeTab" role="tabpanel" aria-labelledby="workspaceCodeTabButton" data-workspace-pane="code" hidden="@(!isCodeTabActive)">
                         <div class="workspace-code-layout">
                             <section class="workspace-file-tree-panel">
                                 <div class="workspace-panel-heading">
@@ -136,35 +140,47 @@
                                     }
                                     else
                                     {
-                                        @foreach (var file in Model.Workspace.Files)
-                                        {
-                                            <div class="workspace-file-entry" title="@file.Path">@file.Path</div>
-                                        }
+                                        <div id="workspaceFileTreeSource" class="visually-hidden" aria-hidden="true">
+                                            @foreach (var file in Model.Workspace.Files)
+                                            {
+                                                var isSelectedFile = selectedFile?.Id == file.Id;
+                                                <button
+                                                    type="button"
+                                                    class="workspace-file-entry @(isSelectedFile ? "active" : null)"
+                                                    title="@file.Path"
+                                                    data-file-button
+                                                    data-file-id="@file.Id"
+                                                    data-file-language="@(file.Language ?? "plaintext")"
+                                                    data-file-path="@file.Path"
+                                                    aria-pressed="@(isSelectedFile ? "true" : "false")">
+                                                    @file.Path
+                                                </button>
+                                                <textarea id="workspaceFileSeed_@file.Id" class="workspace-file-seed visually-hidden" aria-hidden="true" readonly>@file.Content</textarea>
+                                            }
+                                        </div>
+                                        <div id="workspaceFileTreeRoot" class="workspace-file-tree-root" role="tree" aria-label="Project files"></div>
                                     }
                                 </div>
                             </section>
 
                             <section class="workspace-editor-panel">
-                                <div class="workspace-panel-heading">
+                                <div class="workspace-panel-heading workspace-panel-heading-split">
                                     <span>Editor</span>
+                                    <span class="workspace-editor-meta">@(selectedFile?.UpdatedAtUtc.ToLocalTime().ToString("g") ?? "No file selected")</span>
                                 </div>
-                                <div class="workspace-editor-placeholder" aria-label="Monaco code editor">
+                                <form method="post" asp-page-handler="Save" asp-route-projectId="@Model.SelectedProject?.Id" class="workspace-editor-placeholder" aria-label="Monaco code editor">
                                     <div class="workspace-tabbar">
-                                        @if (Model.Workspace.Files.Count == 0)
-                                        {
-                                            <span>No file selected</span>
-                                        }
-                                        else
-                                        {
-                                            @foreach (var file in Model.Workspace.Files.Take(3))
-                                            {
-                                                <span>@file.Path</span>
-                                            }
-                                        }
+                                        <span id="workspaceActiveFileLabel">@(selectedFile?.Path ?? "No file selected")</span>
+                                        <div class="workspace-editor-actions">
+                                            <input asp-for="SaveInput.FileId" type="hidden" value="@(selectedFile?.Id ?? Guid.Empty)" />
+                                            <textarea asp-for="SaveInput.Content" id="workspaceEditorContent" class="visually-hidden" aria-hidden="true">@monacoContent</textarea>
+                                            <button type="submit" class="btn btn-sm btn-primary" disabled="@(selectedFile is null)">Save file</button>
+                                        </div>
                                     </div>
+                                    <span asp-validation-for="SaveInput.Content" class="text-danger small px-3 pt-2"></span>
                                     <div id="workspaceMonacoEditor" class="workspace-monaco-editor" data-language="@monacoLanguage" aria-label="Monaco editor"></div>
                                     <textarea id="workspaceMonacoSeed" class="visually-hidden" aria-hidden="true" readonly>@monacoContent</textarea>
-                                </div>
+                                </form>
                             </section>
 
                             <section class="workspace-logs-panel">
@@ -200,6 +216,8 @@
     <partial name="_ValidationScriptsPartial" />
     <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.min.js"></script>
     <script>
+        window.workspaceInitialTab = '@Model.ActiveTab';
+
         if (document.querySelector('[data-workspace-pane="code"].active')) {
             window.initializeWorkspaceMonaco?.();
         }
