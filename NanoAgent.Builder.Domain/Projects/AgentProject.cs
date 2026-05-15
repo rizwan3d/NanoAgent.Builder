@@ -8,12 +8,15 @@ public sealed class AgentProject : Entity
     {
     }
 
-    public AgentProject(string name, string? description)
+    public AgentProject(string ownerUserId, string name, string? description)
     {
+        SetOwner(ownerUserId);
         Rename(name);
         UpdateDescription(description);
         CreatedAtUtc = DateTimeOffset.UtcNow;
     }
+
+    public string OwnerUserId { get; private set; } = string.Empty;
 
     public string Name { get; private set; } = string.Empty;
 
@@ -44,5 +47,15 @@ public sealed class AgentProject : Entity
         }
 
         Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+    }
+
+    private void SetOwner(string ownerUserId)
+    {
+        if (string.IsNullOrWhiteSpace(ownerUserId))
+        {
+            throw new DomainException("A project must belong to a user.");
+        }
+
+        OwnerUserId = ownerUserId;
     }
 }

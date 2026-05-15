@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using NanoAgent.Builder.Application.Abstractions;
 using NanoAgent.Builder.Application.Projects;
+using NanoAgent.Builder.Application.Saas;
 using NanoAgent.Builder.Domain.Common;
 
 namespace NanoAgent.Builder.Pages;
@@ -11,11 +12,16 @@ public class IndexModel : PageModel
 {
     private readonly IAgentProjectService _projectService;
     private readonly IDatabaseInfoProvider _databaseInfoProvider;
+    private readonly ISaasSubscriptionService _subscriptionService;
 
-    public IndexModel(IAgentProjectService projectService, IDatabaseInfoProvider databaseInfoProvider)
+    public IndexModel(
+        IAgentProjectService projectService,
+        IDatabaseInfoProvider databaseInfoProvider,
+        ISaasSubscriptionService subscriptionService)
     {
         _projectService = projectService;
         _databaseInfoProvider = databaseInfoProvider;
+        _subscriptionService = subscriptionService;
     }
 
     [BindProperty]
@@ -24,6 +30,8 @@ public class IndexModel : PageModel
     public IReadOnlyList<AgentProjectDto> Projects { get; private set; } = [];
 
     public DatabaseInfo DatabaseInfo { get; private set; } = new("Unknown", "Unknown");
+
+    public UserSubscriptionDto? CurrentSubscription { get; private set; }
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
@@ -57,6 +65,7 @@ public class IndexModel : PageModel
     private async Task LoadPageDataAsync(CancellationToken cancellationToken)
     {
         DatabaseInfo = _databaseInfoProvider.GetCurrent();
+        CurrentSubscription = await _subscriptionService.GetCurrentSubscriptionAsync(cancellationToken);
         Projects = await _projectService.ListAsync(cancellationToken);
     }
 

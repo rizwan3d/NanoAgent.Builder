@@ -6,10 +6,10 @@
 
 <div class="row align-items-center mb-4">
     <div class="col-lg-8">
-        <p class="text-uppercase text-muted fw-semibold mb-2">Clean Architecture starter</p>
+        <p class="text-uppercase text-muted fw-semibold mb-2">Clean Architecture SaaS starter</p>
         <h1 class="display-5 fw-bold">NanoAgent Builder</h1>
         <p class="lead mb-0">
-            Razor Pages UI wired through Application services, Domain rules, and Infrastructure persistence.
+            Authenticated users create agent projects inside a single database with SaaS package limits.
         </p>
     </div>
     <div class="col-lg-4 mt-3 mt-lg-0">
@@ -17,6 +17,12 @@
             <div class="small text-muted">Active database provider</div>
             <div class="fw-semibold">@Model.DatabaseInfo.Provider</div>
             <div class="small text-muted">@Model.DatabaseInfo.ConnectionStringName</div>
+            @if (Model.CurrentSubscription is not null)
+            {
+                <hr />
+                <div class="small text-muted">Current package</div>
+                <div class="fw-semibold">@Model.CurrentSubscription.PlanName</div>
+            }
         </div>
     </div>
 </div>
@@ -43,6 +49,7 @@
                     </div>
 
                     <button type="submit" class="btn btn-primary">Save project</button>
+                    <a class="btn btn-outline-secondary" asp-page="/Plans">Change package</a>
                 </form>
             </div>
         </div>
@@ -55,7 +62,7 @@
 
                 @if (Model.Projects.Count == 0)
                 {
-                    <p class="text-muted mb-0">No projects yet. Create one to verify the configured database provider.</p>
+                    <p class="text-muted mb-0">No projects yet. Create one to verify auth, SaaS quota, and database persistence.</p>
                 }
                 else
                 {
@@ -67,6 +74,10 @@
                                     <h3 class="h6 mb-1">@project.Name</h3>
                                     <span class="small text-muted text-nowrap">@project.CreatedAtUtc.ToLocalTime().ToString("g")</span>
                                 </div>
+                                @if (User.IsInRole("Admin"))
+                                {
+                                    <div class="small text-muted">Owner: @project.OwnerUserId</div>
+                                }
                                 @if (!string.IsNullOrWhiteSpace(project.Description))
                                 {
                                     <p class="mb-0 text-muted">@project.Description</p>

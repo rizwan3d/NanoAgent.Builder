@@ -1,0 +1,80 @@
+@page
+@model NanoAgent.Builder.Pages.PlansModel
+@{
+    ViewData["Title"] = "SaaS packages";
+}
+
+<div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+        <p class="text-uppercase text-muted fw-semibold mb-2">SaaS packages</p>
+        <h1 class="display-6 fw-bold">Choose a package</h1>
+        <p class="lead mb-0">Free and paid tiers run in the same application database.</p>
+    </div>
+</div>
+
+@if (TempData["StatusMessage"] is string message)
+{
+    <div class="alert alert-success">@message</div>
+}
+
+<div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+<div class="row g-4">
+    @foreach (var plan in Model.Plans)
+    {
+        var isCurrentPlan = Model.CurrentSubscription?.PlanCode == plan.Code;
+        <div class="col-lg-4">
+            <div class="card h-100 shadow-sm @(isCurrentPlan ? "border-primary" : string.Empty)">
+                <div class="card-body p-4 d-flex flex-column">
+                    <div class="d-flex justify-content-between align-items-start gap-3">
+                        <h2 class="h4 mb-1">@plan.Name</h2>
+                        @if (isCurrentPlan)
+                        {
+                            <span class="badge text-bg-primary">Current</span>
+                        }
+                        else if (plan.Tier.ToString() == "Free")
+                        {
+                            <span class="badge text-bg-secondary">Free</span>
+                        }
+                        else
+                        {
+                            <span class="badge text-bg-success">Paid</span>
+                        }
+                    </div>
+                    <p class="text-muted">@plan.Description</p>
+                    <div class="display-6 fw-semibold mb-3">
+                        @if (plan.MonthlyPrice == 0)
+                        {
+                            <span>$0</span>
+                        }
+                        else
+                        {
+                            <span>@plan.MonthlyPrice.ToString("C0")</span>
+                            <span class="fs-6 text-muted">/month</span>
+                        }
+                    </div>
+                    <ul class="list-unstyled text-muted mb-4">
+                        <li>Project limit: @(plan.ProjectLimit == -1 ? "Unlimited" : plan.ProjectLimit)</li>
+                        <li>Currency: @plan.Currency</li>
+                    </ul>
+
+                    <div class="mt-auto">
+                        @if (User.Identity?.IsAuthenticated == true)
+                        {
+                            <form method="post">
+                                <input type="hidden" name="planCode" value="@plan.Code" />
+                                <button class="btn @(isCurrentPlan ? "btn-outline-primary" : "btn-primary") w-100" disabled="@isCurrentPlan">
+                                    @(isCurrentPlan ? "Selected" : "Select package")
+                                </button>
+                            </form>
+                        }
+                        else
+                        {
+                            <a class="btn btn-primary w-100" asp-page="/Account/Register">Create account</a>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>

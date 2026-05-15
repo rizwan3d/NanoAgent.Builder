@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -5,6 +6,7 @@ using NanoAgent.Builder.Application.Abstractions;
 using NanoAgent.Builder.Infrastructure.Data;
 using NanoAgent.Builder.Infrastructure.Data.Repositories;
 using NanoAgent.Builder.Infrastructure.Database;
+using NanoAgent.Builder.Infrastructure.Identity;
 
 namespace NanoAgent.Builder.Infrastructure;
 
@@ -32,6 +34,7 @@ public static class DependencyInjection
         }
 
         services.Configure<DatabaseOptions>(configuration.GetSection(DatabaseOptions.SectionName));
+        services.Configure<SeedAdminOptions>(configuration.GetSection(SeedAdminOptions.SectionName));
 
         services.AddDbContext<BuilderDbContext>(options =>
         {
@@ -44,7 +47,24 @@ public static class DependencyInjection
             options.UseSqlite(connectionString);
         });
 
+        services
+            .AddIdentity<ApplicationUser, IdentityRole>(options =>
+            {
+                options.User.RequireUniqueEmail = true;
+                options.SignIn.RequireConfirmedAccount = false;
+                options.Password.RequiredLength = 8;
+                options.Password.RequireDigit = true;
+                options.Password.RequireLowercase = true;
+                options.Password.RequireUppercase = true;
+                options.Password.RequireNonAlphanumeric = true;
+            })
+            .AddEntityFrameworkStores<BuilderDbContext>()
+            .AddDefaultTokenProviders();
+
         services.AddScoped<IAgentProjectRepository, EfAgentProjectRepository>();
+        services.AddScoped<ISaasPlanRepository, EfSaasPlanRepository>();
+        services.AddScoped<IUserSubscriptionRepository, EfUserSubscriptionRepository>();
+        services.AddScoped<IApplicationUserReadRepository, IdentityUserReadRepository>();
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
         services.AddSingleton<IDatabaseInfoProvider>(
             new ConfiguredDatabaseInfoProvider(new DatabaseInfo(provider, connectionStringName)));

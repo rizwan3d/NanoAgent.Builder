@@ -13,11 +13,21 @@ internal sealed class EfAgentProjectRepository : IAgentProjectRepository
         _context = context;
     }
 
-    public async Task<IReadOnlyList<AgentProject>> ListAsync(CancellationToken cancellationToken = default) =>
+    public async Task<IReadOnlyList<AgentProject>> ListAllAsync(CancellationToken cancellationToken = default) =>
         await _context.AgentProjects
             .AsNoTracking()
             .OrderByDescending(project => project.CreatedAtUtc)
             .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<AgentProject>> ListForOwnerAsync(string ownerUserId, CancellationToken cancellationToken = default) =>
+        await _context.AgentProjects
+            .AsNoTracking()
+            .Where(project => project.OwnerUserId == ownerUserId)
+            .OrderByDescending(project => project.CreatedAtUtc)
+            .ToListAsync(cancellationToken);
+
+    public Task<int> CountForOwnerAsync(string ownerUserId, CancellationToken cancellationToken = default) =>
+        _context.AgentProjects.CountAsync(project => project.OwnerUserId == ownerUserId, cancellationToken);
 
     public async Task AddAsync(AgentProject project, CancellationToken cancellationToken = default) =>
         await _context.AgentProjects.AddAsync(project, cancellationToken);
