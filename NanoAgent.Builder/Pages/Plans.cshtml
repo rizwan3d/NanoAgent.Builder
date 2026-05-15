@@ -8,7 +8,7 @@
     <div>
         <p class="text-uppercase text-muted fw-semibold mb-2">SaaS packages</p>
         <h1 class="display-6 fw-bold">Choose a package</h1>
-        <p class="lead mb-0">Free stays local. Paid tiers are purchased with Stripe Checkout and stored in the single app database.</p>
+        <p class="lead mb-0">Free stays local. Paid tiers are monthly Stripe subscriptions with package-level project, token, and LLM model limits stored in the single app database.</p>
     </div>
 </div>
 
@@ -54,7 +54,10 @@
                         }
                     </div>
                     <ul class="list-unstyled text-muted mb-4">
-                        <li>Project limit: @(plan.ProjectLimit == -1 ? "Unlimited" : plan.ProjectLimit)</li>
+                        <li>Project limit: @plan.ProjectLimitDisplay</li>
+                        <li>Monthly tokens: @plan.MonthlyTokenLimitDisplay</li>
+                        <li>LLM models: @string.Join(", ", plan.AllowedLlmModels)</li>
+                        <li>Billing: @(plan.RequiresPayment ? "Monthly Stripe subscription" : "Free monthly allowance")</li>
                         <li>Currency: @plan.Currency</li>
                         @if (plan.RequiresPayment)
                         {

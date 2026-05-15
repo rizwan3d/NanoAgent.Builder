@@ -7,46 +7,89 @@
 <div class="mb-4">
     <p class="text-uppercase text-muted fw-semibold mb-2">Billing</p>
     <h1 class="display-6 fw-bold">Manage billing</h1>
-    <p class="lead mb-0">Your billing state is stored in the single app database and synced from Stripe webhooks.</p>
+    <p class="lead mb-0">Your billing state, monthly token usage, and LLM model entitlements are stored in the single app database and synced from Stripe webhooks.</p>
 </div>
 
 <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
 
-<div class="card shadow-sm">
-    <div class="card-body p-4">
-        @if (Model.CurrentSubscription is null)
-        {
-            <p class="text-muted mb-3">No package is active for your account.</p>
-            <a class="btn btn-primary" asp-page="/Plans">Choose package</a>
-        }
-        else
-        {
-            <dl class="row mb-4">
-                <dt class="col-sm-3">Package</dt>
-                <dd class="col-sm-9">@Model.CurrentSubscription.PlanName</dd>
-
-                <dt class="col-sm-3">Status</dt>
-                <dd class="col-sm-9">@Model.CurrentSubscription.Status</dd>
-
-                <dt class="col-sm-3">Started</dt>
-                <dd class="col-sm-9">@Model.CurrentSubscription.StartedAtUtc.ToLocalTime().ToString("g")</dd>
-
-                @if (Model.CurrentSubscription.CurrentPeriodEndsAtUtc is not null)
+<div class="row g-4">
+    <div class="col-lg-7">
+        <div class="card shadow-sm h-100">
+            <div class="card-body p-4">
+                @if (Model.CurrentSubscription is null)
                 {
-                    <dt class="col-sm-3">Current period ends</dt>
-                    <dd class="col-sm-9">@Model.CurrentSubscription.CurrentPeriodEndsAtUtc.Value.ToLocalTime().ToString("g")</dd>
+                    <p class="text-muted mb-3">No package is active for your account.</p>
+                    <a class="btn btn-primary" asp-page="/Plans">Choose package</a>
                 }
-            </dl>
-
-            <div class="d-flex gap-2">
-                <a class="btn btn-primary" asp-page="/Plans">Change package</a>
-                @if (!string.IsNullOrWhiteSpace(Model.CurrentSubscription.StripeCustomerId))
+                else
                 {
-                    <form method="post" asp-page-handler="Portal">
-                        <button type="submit" class="btn btn-outline-primary">Open Stripe billing portal</button>
-                    </form>
+                    <dl class="row mb-4">
+                        <dt class="col-sm-4">Package</dt>
+                        <dd class="col-sm-8">@Model.CurrentSubscription.PlanName</dd>
+
+                        <dt class="col-sm-4">Status</dt>
+                        <dd class="col-sm-8">@Model.CurrentSubscription.Status</dd>
+
+                        <dt class="col-sm-4">Started</dt>
+                        <dd class="col-sm-8">@Model.CurrentSubscription.StartedAtUtc.ToLocalTime().ToString("g")</dd>
+
+                        @if (Model.CurrentSubscription.CurrentPeriodStartsAtUtc is not null)
+                        {
+                            <dt class="col-sm-4">Current period starts</dt>
+                            <dd class="col-sm-8">@Model.CurrentSubscription.CurrentPeriodStartsAtUtc.Value.ToLocalTime().ToString("g")</dd>
+                        }
+
+                        @if (Model.CurrentSubscription.CurrentPeriodEndsAtUtc is not null)
+                        {
+                            <dt class="col-sm-4">Current period ends</dt>
+                            <dd class="col-sm-8">@Model.CurrentSubscription.CurrentPeriodEndsAtUtc.Value.ToLocalTime().ToString("g")</dd>
+                        }
+                    </dl>
+
+                    <div class="d-flex gap-2">
+                        <a class="btn btn-primary" asp-page="/Plans">Change package</a>
+                        @if (!string.IsNullOrWhiteSpace(Model.CurrentSubscription.StripeCustomerId))
+                        {
+                            <form method="post" asp-page-handler="Portal">
+                                <button type="submit" class="btn btn-outline-primary">Open Stripe billing portal</button>
+                            </form>
+                        }
+                    </div>
                 }
             </div>
-        }
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card shadow-sm h-100">
+            <div class="card-body p-4">
+                <h2 class="h4 mb-3">Monthly usage</h2>
+                @if (Model.CurrentUsage is null)
+                {
+                    <p class="text-muted mb-0">Sign in and select a package to see usage.</p>
+                }
+                else
+                {
+                    <dl class="row mb-0">
+                        <dt class="col-sm-5">Used tokens</dt>
+                        <dd class="col-sm-7">@Model.CurrentUsage.UsedTokens.ToString("N0")</dd>
+
+                        <dt class="col-sm-5">Monthly limit</dt>
+                        <dd class="col-sm-7">@Model.CurrentUsage.MonthlyTokenLimitDisplay</dd>
+
+                        <dt class="col-sm-5">Remaining</dt>
+                        <dd class="col-sm-7">@Model.CurrentUsage.RemainingTokensDisplay</dd>
+
+                        <dt class="col-sm-5">Usage period</dt>
+                        <dd class="col-sm-7">
+                            @Model.CurrentUsage.PeriodStartUtc.ToLocalTime().ToString("d") - @Model.CurrentUsage.PeriodEndUtc.ToLocalTime().ToString("d")
+                        </dd>
+
+                        <dt class="col-sm-5">Allowed models</dt>
+                        <dd class="col-sm-7">@string.Join(", ", Model.CurrentUsage.AllowedLlmModels)</dd>
+                    </dl>
+                }
+            </div>
+        </div>
     </div>
 </div>

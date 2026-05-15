@@ -11,6 +11,8 @@ public sealed record SaasPlanDto(
     decimal MonthlyPrice,
     string Currency,
     int ProjectLimit,
+    int MonthlyTokenLimit,
+    IReadOnlyList<string> AllowedLlmModels,
     bool IsActive,
     int DisplayOrder,
     string? StripePriceId)
@@ -18,4 +20,8 @@ public sealed record SaasPlanDto(
     public bool RequiresPayment => Tier == SubscriptionTier.Paid;
 
     public bool IsPaymentConfigured => !RequiresPayment || !string.IsNullOrWhiteSpace(StripePriceId);
+
+    public string ProjectLimitDisplay => ProjectLimit == -1 ? "Unlimited" : ProjectLimit.ToString("N0");
+
+    public string MonthlyTokenLimitDisplay => MonthlyTokenLimit == -1 ? "Unlimited" : MonthlyTokenLimit.ToString("N0");
 }

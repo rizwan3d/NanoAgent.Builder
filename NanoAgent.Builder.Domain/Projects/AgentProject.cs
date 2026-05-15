@@ -8,11 +8,12 @@ public sealed class AgentProject : Entity
     {
     }
 
-    public AgentProject(string ownerUserId, string name, string? description)
+    public AgentProject(string ownerUserId, string name, string? description, string llmModel)
     {
         SetOwner(ownerUserId);
         Rename(name);
         UpdateDescription(description);
+        SetLlmModel(llmModel);
         CreatedAtUtc = DateTimeOffset.UtcNow;
     }
 
@@ -21,6 +22,8 @@ public sealed class AgentProject : Entity
     public string Name { get; private set; } = string.Empty;
 
     public string? Description { get; private set; }
+
+    public string LlmModel { get; private set; } = string.Empty;
 
     public DateTimeOffset CreatedAtUtc { get; private set; }
 
@@ -47,6 +50,21 @@ public sealed class AgentProject : Entity
         }
 
         Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+    }
+
+    public void SetLlmModel(string llmModel)
+    {
+        if (string.IsNullOrWhiteSpace(llmModel))
+        {
+            throw new DomainException("LLM model is required.");
+        }
+
+        if (llmModel.Length > 100)
+        {
+            throw new DomainException("LLM model cannot be longer than 100 characters.");
+        }
+
+        LlmModel = llmModel.Trim();
     }
 
     private void SetOwner(string ownerUserId)

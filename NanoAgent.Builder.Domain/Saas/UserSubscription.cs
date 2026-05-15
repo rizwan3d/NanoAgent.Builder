@@ -39,6 +39,8 @@ public sealed class UserSubscription : Entity
 
     public string? StripePriceId { get; private set; }
 
+    public DateTimeOffset? CurrentPeriodStartsAtUtc { get; private set; }
+
     public DateTimeOffset? CurrentPeriodEndsAtUtc { get; private set; }
 
     public bool IsCurrent => Status == SubscriptionStatus.Active && EndsAtUtc is null;
@@ -54,39 +56,53 @@ public sealed class UserSubscription : Entity
         string? stripeCustomerId,
         string? stripeSubscriptionId,
         string? stripePriceId,
+        DateTimeOffset? currentPeriodStartsAtUtc,
         DateTimeOffset? currentPeriodEndsAtUtc)
     {
         StripeCustomerId = CleanOptionalStripeId(stripeCustomerId, nameof(stripeCustomerId));
         StripeSubscriptionId = CleanOptionalStripeId(stripeSubscriptionId, nameof(stripeSubscriptionId));
         StripePriceId = CleanOptionalStripeId(stripePriceId, nameof(stripePriceId));
-        CurrentPeriodEndsAtUtc = currentPeriodEndsAtUtc;
+        SetCurrentPeriod(currentPeriodStartsAtUtc, currentPeriodEndsAtUtc);
     }
 
-    public void MarkActive(DateTimeOffset? currentPeriodEndsAtUtc = null)
+    public void MarkActive(DateTimeOffset? currentPeriodStartsAtUtc = null, DateTimeOffset? currentPeriodEndsAtUtc = null)
     {
         Status = SubscriptionStatus.Active;
         EndsAtUtc = null;
-        CurrentPeriodEndsAtUtc = currentPeriodEndsAtUtc ?? CurrentPeriodEndsAtUtc;
+        SetCurrentPeriod(currentPeriodStartsAtUtc ?? CurrentPeriodStartsAtUtc, currentPeriodEndsAtUtc ?? CurrentPeriodEndsAtUtc);
     }
 
-    public void MarkIncomplete(DateTimeOffset? currentPeriodEndsAtUtc = null)
+    public void MarkIncomplete(DateTimeOffset? currentPeriodStartsAtUtc = null, DateTimeOffset? currentPeriodEndsAtUtc = null)
     {
         Status = SubscriptionStatus.Incomplete;
         EndsAtUtc = null;
-        CurrentPeriodEndsAtUtc = currentPeriodEndsAtUtc ?? CurrentPeriodEndsAtUtc;
+        SetCurrentPeriod(currentPeriodStartsAtUtc ?? CurrentPeriodStartsAtUtc, currentPeriodEndsAtUtc ?? CurrentPeriodEndsAtUtc);
     }
 
-    public void MarkPastDue(DateTimeOffset? currentPeriodEndsAtUtc = null)
+    public void MarkPastDue(DateTimeOffset? currentPeriodStartsAtUtc = null, DateTimeOffset? currentPeriodEndsAtUtc = null)
     {
         Status = SubscriptionStatus.PastDue;
         EndsAtUtc = null;
-        CurrentPeriodEndsAtUtc = currentPeriodEndsAtUtc ?? CurrentPeriodEndsAtUtc;
+        SetCurrentPeriod(currentPeriodStartsAtUtc ?? CurrentPeriodStartsAtUtc, currentPeriodEndsAtUtc ?? CurrentPeriodEndsAtUtc);
     }
 
     public void Cancel(DateTimeOffset? endsAtUtc = null)
     {
         Status = SubscriptionStatus.Canceled;
         EndsAtUtc = endsAtUtc ?? DateTimeOffset.UtcNow;
+    }
+
+    private void SetCurrentPeriod(DateTimeOffset? currentPeriodStartsAtUtc, DateTimeOffset? currentPeriodEndsAtUtc)
+    {
+        if (currentPeriodStartsAtUtc.HasValue &&
+            currentPeriodEndsAtUtc.HasValue &&
+            currentPeriodEndsAtUtc.Value <= currentPeriodStartsAtUtc.Value)
+        {
+            throw new DomainException("Subscription period end must be after the start.");
+        }
+
+        CurrentPeriodStartsAtUtc = currentPeriodStartsAtUtc;
+        CurrentPeriodEndsAtUtc = currentPeriodEndsAtUtc;
     }
 
     private static string? CleanOptionalStripeId(string? value, string parameterName)

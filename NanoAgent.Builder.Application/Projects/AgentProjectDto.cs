@@ -5,4 +5,5 @@ public sealed record AgentProjectDto(
     string OwnerUserId,
     string Name,
     string? Description,
+    string LlmModel,
     DateTimeOffset CreatedAtUtc);

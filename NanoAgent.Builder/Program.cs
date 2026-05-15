@@ -65,10 +65,45 @@ public class Program
         })
         .AllowAnonymous();
 
+
+        app.MapPost("/api/usage/record", async (
+            RecordTokenUsageRequest request,
+            ICurrentUserContext currentUser,
+            ITokenUsageService tokenUsageService,
+            CancellationToken cancellationToken) =>
+        {
+            if (!currentUser.IsAuthenticated || string.IsNullOrWhiteSpace(currentUser.UserId))
+            {
+                return Results.Unauthorized();
+            }
+
+            try
+            {
+                var usage = await tokenUsageService.RecordUsageAsync(
+                    currentUser.UserId,
+                    request.LlmModel,
+                    request.InputTokens,
+                    request.OutputTokens,
+                    cancellationToken);
+
+                return Results.Ok(usage);
+            }
+            catch (DomainException exception)
+            {
+                return Results.BadRequest(new { error = exception.Message });
+            }
+        })
+        .RequireAuthorization();
+
         app.MapStaticAssets();
         app.MapRazorPages()
            .WithStaticAssets();
 
         await app.RunAsync();
     }
+
+    public sealed record RecordTokenUsageRequest(
+        string LlmModel,
+        int InputTokens,
+        int OutputTokens);
 }

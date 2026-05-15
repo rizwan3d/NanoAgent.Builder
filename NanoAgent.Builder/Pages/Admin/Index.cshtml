@@ -7,7 +7,7 @@
 <div class="mb-4">
     <p class="text-uppercase text-muted fw-semibold mb-2">Admin</p>
     <h1 class="display-6 fw-bold">SaaS dashboard</h1>
-    <p class="lead mb-0">Manage visibility into users, roles, packages, and project usage.</p>
+    <p class="lead mb-0">Manage visibility into users, roles, packages, project usage, monthly token usage, and LLM model entitlements.</p>
 </div>
 
 <div class="row g-3 mb-4">
@@ -27,7 +27,7 @@
         <h2 class="h4 mb-3">Packages</h2>
         <div class="table-responsive">
             <table class="table align-middle">
-                <thead><tr><th>Name</th><th>Tier</th><th>Price</th><th>Project limit</th><th>Stripe</th><th>Status</th></tr></thead>
+                <thead><tr><th>Name</th><th>Tier</th><th>Price</th><th>Projects</th><th>Monthly tokens</th><th>LLM models</th><th>Stripe</th><th>Status</th></tr></thead>
                 <tbody>
                     @foreach (var plan in Model.Dashboard.Plans)
                     {
@@ -35,7 +35,9 @@
                             <td><strong>@plan.Name</strong><div class="small text-muted">@plan.Code</div></td>
                             <td>@plan.Tier</td>
                             <td>@(plan.MonthlyPrice == 0 ? "$0" : plan.MonthlyPrice.ToString("C0")) / month</td>
-                            <td>@(plan.ProjectLimit == -1 ? "Unlimited" : plan.ProjectLimit)</td>
+                            <td>@plan.ProjectLimitDisplay</td>
+                            <td>@plan.MonthlyTokenLimitDisplay</td>
+                            <td>@string.Join(", ", plan.AllowedLlmModels)</td>
                             <td>@(plan.RequiresPayment ? (plan.IsPaymentConfigured ? "Configured" : "Missing price id") : "Not required")</td>
                             <td>@(plan.IsActive ? "Active" : "Inactive")</td>
                         </tr>
@@ -51,7 +53,7 @@
         <h2 class="h4 mb-3">Users</h2>
         <div class="table-responsive">
             <table class="table align-middle">
-                <thead><tr><th>User</th><th>Roles</th><th>Package</th><th>Projects</th><th>Created</th></tr></thead>
+                <thead><tr><th>User</th><th>Roles</th><th>Package</th><th>Projects</th><th>Monthly tokens</th><th>LLM models</th><th>Created</th></tr></thead>
                 <tbody>
                     @foreach (var user in Model.Dashboard.Users)
                     {
@@ -60,6 +62,8 @@
                             <td>@string.Join(", ", user.Roles)</td>
                             <td>@user.PlanName <span class="small text-muted">(@user.SubscriptionStatus)</span></td>
                             <td>@user.ProjectCount</td>
+                            <td>@user.UsedTokensDisplay / @user.MonthlyTokenLimitDisplay</td>
+                            <td>@string.Join(", ", user.AllowedLlmModels)</td>
                             <td>@user.CreatedAtUtc.ToLocalTime().ToString("g")</td>
                         </tr>
                     }

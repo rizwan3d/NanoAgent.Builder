@@ -56,6 +56,8 @@ public static class DatabaseInitializationExtensions
                     0,
                     "USD",
                     3,
+                    10000,
+                    "gpt-4o-mini",
                     1),
                 new SubscriptionPlan(
                     SaasPlanCodes.Starter,
@@ -65,6 +67,8 @@ public static class DatabaseInitializationExtensions
                     19,
                     "USD",
                     25,
+                    250000,
+                    "gpt-4o-mini,gpt-4.1-mini",
                     2,
                     stripeOptions.GetPriceId(SaasPlanCodes.Starter)),
                 new SubscriptionPlan(
@@ -75,6 +79,8 @@ public static class DatabaseInitializationExtensions
                     49,
                     "USD",
                     100,
+                    1000000,
+                    "gpt-4o-mini,gpt-4.1-mini,gpt-4.1",
                     3,
                     stripeOptions.GetPriceId(SaasPlanCodes.Pro))
             };
@@ -83,6 +89,15 @@ public static class DatabaseInitializationExtensions
             await context.SaveChangesAsync(cancellationToken);
             return;
         }
+
+        var free = existingPlans.FirstOrDefault(plan => plan.Code == SaasPlanCodes.Free);
+        free?.UpdateEntitlements(3, 10000, "gpt-4o-mini");
+
+        var starterExisting = existingPlans.FirstOrDefault(plan => plan.Code == SaasPlanCodes.Starter);
+        starterExisting?.UpdateEntitlements(25, 250000, "gpt-4o-mini,gpt-4.1-mini");
+
+        var proExisting = existingPlans.FirstOrDefault(plan => plan.Code == SaasPlanCodes.Pro);
+        proExisting?.UpdateEntitlements(100, 1000000, "gpt-4o-mini,gpt-4.1-mini,gpt-4.1");
 
         var starterPriceId = stripeOptions.GetPriceId(SaasPlanCodes.Starter);
         var starter = existingPlans.FirstOrDefault(plan => plan.Code == SaasPlanCodes.Starter);

@@ -13,15 +13,18 @@ public class IndexModel : PageModel
     private readonly IAgentProjectService _projectService;
     private readonly IDatabaseInfoProvider _databaseInfoProvider;
     private readonly ISaasSubscriptionService _subscriptionService;
+    private readonly ITokenUsageService _tokenUsageService;
 
     public IndexModel(
         IAgentProjectService projectService,
         IDatabaseInfoProvider databaseInfoProvider,
-        ISaasSubscriptionService subscriptionService)
+        ISaasSubscriptionService subscriptionService,
+        ITokenUsageService tokenUsageService)
     {
         _projectService = projectService;
         _databaseInfoProvider = databaseInfoProvider;
         _subscriptionService = subscriptionService;
+        _tokenUsageService = tokenUsageService;
     }
 
     [BindProperty]
@@ -33,9 +36,12 @@ public class IndexModel : PageModel
 
     public UserSubscriptionDto? CurrentSubscription { get; private set; }
 
+    public TokenUsageDto? CurrentUsage { get; private set; }
+
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         await LoadPageDataAsync(cancellationToken);
+        Input.LlmModel = CurrentUsage?.AllowedLlmModels.FirstOrDefault() ?? string.Empty;
     }
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
@@ -49,7 +55,7 @@ public class IndexModel : PageModel
         try
         {
             await _projectService.CreateAsync(
-                new CreateAgentProjectRequest(Input.Name, Input.Description),
+                new CreateAgentProjectRequest(Input.Name, Input.Description, Input.LlmModel),
                 cancellationToken);
         }
         catch (DomainException exception)
@@ -66,6 +72,7 @@ public class IndexModel : PageModel
     {
         DatabaseInfo = _databaseInfoProvider.GetCurrent();
         CurrentSubscription = await _subscriptionService.GetCurrentSubscriptionAsync(cancellationToken);
+        CurrentUsage = await _tokenUsageService.GetCurrentUsageForCurrentUserAsync(cancellationToken);
         Projects = await _projectService.ListAsync(cancellationToken);
     }
 
@@ -77,5 +84,10 @@ public class IndexModel : PageModel
 
         [StringLength(1000)]
         public string? Description { get; set; }
+
+        [Required]
+        [Display(Name = "LLM model")]
+        [StringLength(100)]
+        public string LlmModel { get; set; } = string.Empty;
     }
 }

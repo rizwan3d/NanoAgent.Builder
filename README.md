@@ -13,15 +13,16 @@ This solution is structured around project-level Clean Architecture, SOLID princ
 
 - ASP.NET Core Identity authentication for users and admins.
 - Role-based admin access with `Admin` and `User` roles.
-- Single shared application database for Identity users/roles, SaaS plans, subscriptions, and agent projects.
-- Seeded SaaS packages:
-  - `Free` - $0/month, 3 projects.
-  - `Starter` - $19/month, 25 projects.
-  - `Pro` - $49/month, 100 projects.
+- Single shared application database for Identity users/roles, SaaS plans, subscriptions, monthly token usage, and agent projects.
+- Seeded monthly SaaS packages:
+  - `Free` - $0/month, 3 projects, 10,000 monthly tokens, `gpt-4o-mini`.
+  - `Starter` - $19/month, 25 projects, 250,000 monthly tokens, `gpt-4o-mini` and `gpt-4.1-mini`.
+  - `Pro` - $49/month, 100 projects, 1,000,000 monthly tokens, `gpt-4o-mini`, `gpt-4.1-mini`, and `gpt-4.1`.
 - New users are automatically assigned to the Free package.
 - The seeded admin is automatically assigned to the Pro package.
-- Project creation enforces the current user's SaaS package quota.
-- Admin dashboard shows users, roles, package status, Stripe configuration, and project usage.
+- Project creation enforces the current user's SaaS package quota and selected LLM model entitlement.
+- Monthly token usage is tracked per user and period in `MonthlyTokenUsages`.
+- Admin dashboard shows users, roles, package status, Stripe configuration, project usage, token usage, and allowed LLM models.
 - Stripe Checkout for paid packages and Stripe Billing Portal for paid users.
 - Stripe webhooks activate, update, mark past-due, and cancel paid subscriptions in the same application database.
 
@@ -42,7 +43,7 @@ Change this password before using the project anywhere beyond local development.
 
 ## Stripe billing
 
-Paid packages use Stripe Checkout in subscription mode. The app keeps a single database; Stripe customer/subscription ids are stored on the existing Identity user and `UserSubscriptions` tables.
+Paid packages use Stripe Checkout in subscription mode. Configure the Stripe price ids as monthly recurring prices. The app keeps a single database; Stripe customer/subscription ids and billing periods are stored on the existing Identity user and `UserSubscriptions` tables.
 
 Configure Stripe with user secrets or environment variables instead of committing real keys:
 
@@ -66,7 +67,7 @@ Checkout flow:
 1. `/Plans` keeps Free local and redirects paid packages to Stripe Checkout.
 2. Stripe redirects back to `/Billing/Success`.
 3. The authoritative activation happens through `/billing/stripe-webhook`.
-4. `/Billing` shows the current package and opens the Stripe Billing Portal when a Stripe customer exists.
+4. `/Billing` shows the current package, billing period, token usage, remaining monthly tokens, and allowed LLM models. It opens the Stripe Billing Portal when a Stripe customer exists.
 
 The webhook endpoint currently handles:
 
@@ -74,6 +75,31 @@ The webhook endpoint currently handles:
 - `customer.subscription.created`
 - `customer.subscription.updated`
 - `customer.subscription.deleted`
+
+## Token usage and LLM model limits
+
+Package entitlements live on `SubscriptionPlan`:
+
+- `ProjectLimit`
+- `MonthlyTokenLimit`
+- `AllowedLlmModels`
+
+The Application layer exposes `ITokenUsageService` to check model access, check remaining monthly tokens, and record usage after an LLM call.
+
+Authenticated LLM usage can be recorded through:
+
+```http
+POST /api/usage/record
+Content-Type: application/json
+
+{
+  "llmModel": "gpt-4o-mini",
+  "inputTokens": 1200,
+  "outputTokens": 300
+}
+```
+
+The API rejects requests when the selected model is not allowed by the user's package or when the request would exceed the user's monthly token allowance.
 
 ## SOLID boundaries
 
@@ -85,7 +111,7 @@ The webhook endpoint currently handles:
 
 ## Database providers
 
-The app supports SQLite and PostgreSQL through configuration. Both providers use one database for auth, users, admins, packages, subscriptions, and projects.
+The app supports SQLite and PostgreSQL through configuration. Both providers use one database for auth, users, admins, packages, subscriptions, monthly token usage, and projects.
 
 Default SQLite configuration:
 
@@ -135,4 +161,4 @@ dotnet user-secrets set "Database:Provider" "PostgreSql" --project NanoAgent.Bui
 dotnet user-secrets set "ConnectionStrings:PostgreSqlConnection" "Host=localhost;Port=5432;Database=nanoagent_builder;Username=postgres;Password=postgres" --project NanoAgent.Builder/NanoAgent.Builder.csproj
 ```
 
-If you previously ran the older SQLite starter, delete `NanoAgent.Builder/App_Data/*.db` before first run so `EnsureCreated` can create the new Identity + SaaS schema.
+If you previously ran the older SQLite starter, delete `NanoAgent.Builder/App_Data/*.db` before first run so `EnsureCreated` can create the new Identity + SaaS + token usage schema.

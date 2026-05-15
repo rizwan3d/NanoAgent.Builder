@@ -77,7 +77,7 @@ internal sealed class SaasSubscriptionService : ISaasSubscriptionService
         else
         {
             subscription.ChangePlan(plan.Id);
-            subscription.AttachStripeSubscription(null, null, null, null);
+            subscription.AttachStripeSubscription(null, null, null, null, null);
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -96,6 +96,8 @@ internal sealed class SaasSubscriptionService : ISaasSubscriptionService
             plan.MonthlyPrice,
             plan.Currency,
             plan.ProjectLimit,
+            plan.MonthlyTokenLimit,
+            plan.GetAllowedLlmModels(),
             plan.IsActive,
             plan.DisplayOrder,
             plan.StripePriceId);
@@ -115,6 +117,7 @@ internal sealed class SaasSubscriptionService : ISaasSubscriptionService
             subscription.EndsAtUtc,
             subscription.StripeCustomerId,
             subscription.StripeSubscriptionId,
+            subscription.CurrentPeriodStartsAtUtc,
             subscription.CurrentPeriodEndsAtUtc);
     }
 }

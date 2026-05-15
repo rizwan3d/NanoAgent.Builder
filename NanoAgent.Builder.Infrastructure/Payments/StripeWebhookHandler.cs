@@ -85,6 +85,7 @@ internal sealed class StripeWebhookHandler : IStripeWebhookHandler
             StripeCustomerId: GetStripeId(session, "customer"),
             StripeSubscriptionId: GetStripeId(session, "subscription"),
             StripePriceId: null,
+            CurrentPeriodStartsAtUtc: null,
             CurrentPeriodEndsAtUtc: null);
 
         await _subscriptions.ActivatePaidSubscriptionAsync(request, cancellationToken);
@@ -99,6 +100,7 @@ internal sealed class StripeWebhookHandler : IStripeWebhookHandler
             StripeCustomerId: GetStripeId(subscription, "customer"),
             StripeSubscriptionId: GetString(subscription, "id"),
             StripePriceId: GetFirstPriceId(subscription),
+            CurrentPeriodStartsAtUtc: GetUnixTimestamp(subscription, "current_period_start"),
             CurrentPeriodEndsAtUtc: GetUnixTimestamp(subscription, "current_period_end"));
 
         switch (status)
@@ -141,6 +143,7 @@ internal sealed class StripeWebhookHandler : IStripeWebhookHandler
             PlanCode: GetMetadataString(subscription, "plan_code"),
             StripeSubscriptionId: GetString(subscription, "id"),
             StripePriceId: GetFirstPriceId(subscription),
+            CurrentPeriodStartsAtUtc: GetUnixTimestamp(subscription, "current_period_start"),
             CurrentPeriodEndsAtUtc: GetUnixTimestamp(subscription, "current_period_end") ??
                                     GetUnixTimestamp(subscription, "ended_at") ??
                                     GetUnixTimestamp(subscription, "canceled_at"));
@@ -215,6 +218,7 @@ internal sealed class StripeWebhookHandler : IStripeWebhookHandler
             request.PlanCode,
             request.StripeSubscriptionId,
             request.StripePriceId,
+            request.CurrentPeriodStartsAtUtc,
             request.CurrentPeriodEndsAtUtc);
 
     private static bool TryGetDataObject(JsonElement root, out JsonElement dataObject)

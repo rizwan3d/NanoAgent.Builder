@@ -16,6 +16,8 @@ public sealed class SubscriptionPlan : Entity
         decimal monthlyPrice,
         string currency,
         int projectLimit,
+        int monthlyTokenLimit,
+        string allowedLlmModels,
         int displayOrder,
         string? stripePriceId = null)
     {
@@ -24,6 +26,8 @@ public sealed class SubscriptionPlan : Entity
         UpdateDescription(description);
         SetPricing(tier, monthlyPrice, currency);
         SetProjectLimit(projectLimit);
+        SetMonthlyTokenLimit(monthlyTokenLimit);
+        SetAllowedLlmModels(allowedLlmModels);
         ConfigureStripePrice(stripePriceId);
         DisplayOrder = displayOrder;
         IsActive = true;
@@ -44,6 +48,10 @@ public sealed class SubscriptionPlan : Entity
 
     public int ProjectLimit { get; private set; }
 
+    public int MonthlyTokenLimit { get; private set; }
+
+    public string AllowedLlmModels { get; private set; } = string.Empty;
+
     public int DisplayOrder { get; private set; }
 
     public string? StripePriceId { get; private set; }
@@ -51,6 +59,11 @@ public sealed class SubscriptionPlan : Entity
     public bool IsActive { get; private set; }
 
     public DateTimeOffset CreatedAtUtc { get; private set; }
+
+    public IReadOnlyList<string> GetAllowedLlmModels() => SplitAllowedLlmModels(AllowedLlmModels);
+
+    public bool AllowsLlmModel(string llmModel) =>
+        GetAllowedLlmModels().Any(model => string.Equals(model, llmModel, StringComparison.OrdinalIgnoreCase));
 
     public void Rename(string name)
     {
@@ -90,6 +103,13 @@ public sealed class SubscriptionPlan : Entity
         }
 
         StripePriceId = string.IsNullOrWhiteSpace(stripePriceId) ? null : stripePriceId.Trim();
+    }
+
+    public void UpdateEntitlements(int projectLimit, int monthlyTokenLimit, string allowedLlmModels)
+    {
+        SetProjectLimit(projectLimit);
+        SetMonthlyTokenLimit(monthlyTokenLimit);
+        SetAllowedLlmModels(allowedLlmModels);
     }
 
     public void Activate() => IsActive = true;
@@ -142,4 +162,42 @@ public sealed class SubscriptionPlan : Entity
 
         ProjectLimit = projectLimit;
     }
+
+    private void SetMonthlyTokenLimit(int monthlyTokenLimit)
+    {
+        if (monthlyTokenLimit == 0 || monthlyTokenLimit < -1)
+        {
+            throw new DomainException("Monthly token limit must be positive, or -1 for unlimited.");
+        }
+
+        MonthlyTokenLimit = monthlyTokenLimit;
+    }
+
+    private void SetAllowedLlmModels(string allowedLlmModels)
+    {
+        if (string.IsNullOrWhiteSpace(allowedLlmModels))
+        {
+            throw new DomainException("At least one LLM model must be allowed for a plan.");
+        }
+
+        if (allowedLlmModels.Length > 500)
+        {
+            throw new DomainException("Allowed LLM models cannot be longer than 500 characters.");
+        }
+
+        var cleanedModels = SplitAllowedLlmModels(allowedLlmModels);
+        if (cleanedModels.Count == 0)
+        {
+            throw new DomainException("At least one LLM model must be allowed for a plan.");
+        }
+
+        AllowedLlmModels = string.Join(",", cleanedModels);
+    }
+
+    private static IReadOnlyList<string> SplitAllowedLlmModels(string allowedLlmModels) =>
+        allowedLlmModels
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(model => !string.IsNullOrWhiteSpace(model))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 }

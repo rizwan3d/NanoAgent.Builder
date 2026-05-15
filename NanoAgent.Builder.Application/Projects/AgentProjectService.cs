@@ -10,17 +10,20 @@ internal sealed class AgentProjectService : IAgentProjectService
     private readonly ICurrentUserContext _currentUser;
     private readonly IAgentProjectRepository _projects;
     private readonly IProjectQuotaService _quotaService;
+    private readonly ITokenUsageService _tokenUsageService;
     private readonly IUnitOfWork _unitOfWork;
 
     public AgentProjectService(
         ICurrentUserContext currentUser,
         IAgentProjectRepository projects,
         IProjectQuotaService quotaService,
+        ITokenUsageService tokenUsageService,
         IUnitOfWork unitOfWork)
     {
         _currentUser = currentUser;
         _projects = projects;
         _quotaService = quotaService;
+        _tokenUsageService = tokenUsageService;
         _unitOfWork = unitOfWork;
     }
 
@@ -40,8 +43,9 @@ internal sealed class AgentProjectService : IAgentProjectService
         var userId = RequireSignedInUser();
 
         await _quotaService.EnsureCanCreateProjectAsync(userId, cancellationToken);
+        await _tokenUsageService.EnsureModelAllowedAsync(userId, request.LlmModel, cancellationToken);
 
-        var project = new AgentProject(userId, request.Name, request.Description);
+        var project = new AgentProject(userId, request.Name, request.Description, request.LlmModel);
 
         await _projects.AddAsync(project, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -60,5 +64,5 @@ internal sealed class AgentProjectService : IAgentProjectService
     }
 
     private static AgentProjectDto MapToDto(AgentProject project) =>
-        new(project.Id, project.OwnerUserId, project.Name, project.Description, project.CreatedAtUtc);
+        new(project.Id, project.OwnerUserId, project.Name, project.Description, project.LlmModel, project.CreatedAtUtc);
 }

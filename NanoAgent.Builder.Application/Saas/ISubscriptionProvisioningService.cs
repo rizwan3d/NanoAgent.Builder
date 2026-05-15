@@ -25,6 +25,7 @@ public sealed record PaidSubscriptionProvisioningRequest(
     string? StripeCustomerId,
     string? StripeSubscriptionId,
     string? StripePriceId,
+    DateTimeOffset? CurrentPeriodStartsAtUtc,
     DateTimeOffset? CurrentPeriodEndsAtUtc);
 
 public sealed record StripeSubscriptionStateChangeRequest(
@@ -32,4 +33,5 @@ public sealed record StripeSubscriptionStateChangeRequest(
     string? PlanCode,
     string? StripeSubscriptionId,
     string? StripePriceId,
+    DateTimeOffset? CurrentPeriodStartsAtUtc,
     DateTimeOffset? CurrentPeriodEndsAtUtc);

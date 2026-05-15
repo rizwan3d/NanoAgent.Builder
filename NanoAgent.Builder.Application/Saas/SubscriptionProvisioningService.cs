@@ -46,8 +46,9 @@ internal sealed class SubscriptionProvisioningService : ISubscriptionProvisionin
             request.StripeCustomerId,
             request.StripeSubscriptionId,
             request.StripePriceId,
+            request.CurrentPeriodStartsAtUtc,
             request.CurrentPeriodEndsAtUtc);
-        subscription.MarkActive(request.CurrentPeriodEndsAtUtc);
+        subscription.MarkActive(request.CurrentPeriodStartsAtUtc, request.CurrentPeriodEndsAtUtc);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
@@ -62,7 +63,7 @@ internal sealed class SubscriptionProvisioningService : ISubscriptionProvisionin
             return;
         }
 
-        subscription.MarkPastDue(request.CurrentPeriodEndsAtUtc);
+        subscription.MarkPastDue(request.CurrentPeriodStartsAtUtc, request.CurrentPeriodEndsAtUtc);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
@@ -76,7 +77,7 @@ internal sealed class SubscriptionProvisioningService : ISubscriptionProvisionin
             return;
         }
 
-        subscription.MarkIncomplete(request.CurrentPeriodEndsAtUtc);
+        subscription.MarkIncomplete(request.CurrentPeriodStartsAtUtc, request.CurrentPeriodEndsAtUtc);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 

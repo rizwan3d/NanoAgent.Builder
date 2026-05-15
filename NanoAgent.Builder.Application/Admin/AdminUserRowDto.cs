@@ -8,4 +8,12 @@ public sealed record AdminUserRowDto(
     string PlanName,
     string SubscriptionStatus,
     int ProjectCount,
-    DateTimeOffset CreatedAtUtc);
+    int UsedTokensThisPeriod,
+    int MonthlyTokenLimit,
+    IReadOnlyList<string> AllowedLlmModels,
+    DateTimeOffset CreatedAtUtc)
+{
+    public string MonthlyTokenLimitDisplay => MonthlyTokenLimit == -1 ? "Unlimited" : MonthlyTokenLimit.ToString("N0");
+
+    public string UsedTokensDisplay => UsedTokensThisPeriod.ToString("N0");
+}

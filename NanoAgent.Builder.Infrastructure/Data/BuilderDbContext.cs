@@ -19,6 +19,8 @@ public sealed class BuilderDbContext : IdentityDbContext<ApplicationUser>
 
     public DbSet<UserSubscription> UserSubscriptions => Set<UserSubscription>();
 
+    public DbSet<MonthlyTokenUsage> MonthlyTokenUsages => Set<MonthlyTokenUsage>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -50,6 +52,10 @@ public sealed class BuilderDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(project => project.Description)
                 .HasMaxLength(1000);
 
+            entity.Property(project => project.LlmModel)
+                .IsRequired()
+                .HasMaxLength(100);
+
             entity.Property(project => project.CreatedAtUtc)
                 .IsRequired();
 
@@ -78,6 +84,13 @@ public sealed class BuilderDbContext : IdentityDbContext<ApplicationUser>
 
             entity.Property(plan => plan.MonthlyPrice)
                 .HasPrecision(18, 2);
+
+            entity.Property(plan => plan.MonthlyTokenLimit)
+                .IsRequired();
+
+            entity.Property(plan => plan.AllowedLlmModels)
+                .IsRequired()
+                .HasMaxLength(500);
 
             entity.Property(plan => plan.StripePriceId)
                 .HasMaxLength(200);
@@ -112,6 +125,10 @@ public sealed class BuilderDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(subscription => subscription.StripePriceId)
                 .HasMaxLength(200);
 
+            entity.Property(subscription => subscription.CurrentPeriodStartsAtUtc);
+
+            entity.Property(subscription => subscription.CurrentPeriodEndsAtUtc);
+
             entity.Property(subscription => subscription.StartedAtUtc)
                 .IsRequired();
 
@@ -129,5 +146,39 @@ public sealed class BuilderDbContext : IdentityDbContext<ApplicationUser>
             entity.HasIndex(subscription => subscription.StripeSubscriptionId);
             entity.HasIndex(subscription => subscription.StripeCustomerId);
         });
+
+        modelBuilder.Entity<MonthlyTokenUsage>(entity =>
+        {
+            entity.ToTable("MonthlyTokenUsages");
+            entity.HasKey(usage => usage.Id);
+
+            entity.Property(usage => usage.UserId)
+                .IsRequired()
+                .HasMaxLength(450);
+
+            entity.Property(usage => usage.PeriodStartUtc)
+                .IsRequired();
+
+            entity.Property(usage => usage.PeriodEndUtc)
+                .IsRequired();
+
+            entity.Property(usage => usage.UsedTokens)
+                .IsRequired();
+
+            entity.Property(usage => usage.CreatedAtUtc)
+                .IsRequired();
+
+            entity.Property(usage => usage.UpdatedAtUtc)
+                .IsRequired();
+
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(usage => usage.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(usage => new { usage.UserId, usage.PeriodStartUtc, usage.PeriodEndUtc })
+                .IsUnique();
+        });
+
     }
 }
