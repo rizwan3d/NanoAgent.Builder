@@ -9,10 +9,17 @@
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/NanoAgent.Builder.styles.css" asp-append-version="true" />
 </head>
-<body>
+@{
+    var useBuilderLayout = ViewData["UseBuilderLayout"] is bool builderLayoutEnabled && builderLayoutEnabled;
+    var shellClass = useBuilderLayout ? "builder-page-shell" : string.Empty;
+    var mainContainerClass = useBuilderLayout ? "container-fluid px-0" : "container";
+    var navContainerClass = useBuilderLayout ? "container-fluid px-4" : "container";
+    var navMarginClass = useBuilderLayout ? "" : "mb-3";
+}
+<body class="@shellClass">
     <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
-            <div class="container">
+        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow @navMarginClass">
+            <div class="@navContainerClass">
                 <a class="navbar-brand" asp-area="" asp-page="/Index">NanoAgent.Builder</a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
                         aria-expanded="false" aria-label="Toggle navigation">
@@ -68,17 +75,20 @@
             </div>
         </nav>
     </header>
-    <div class="container">
-        <main role="main" class="pb-3">
+    <div class="@mainContainerClass">
+        <main role="main" class="@(useBuilderLayout ? "" : "pb-3")">
             @RenderBody()
         </main>
     </div>
 
-    <footer class="border-top footer text-muted">
-        <div class="container">
-            &copy; 2026 - NanoAgent.Builder - <a asp-area="" asp-page="/Privacy">Privacy</a>
-        </div>
-    </footer>
+    @if (!useBuilderLayout)
+    {
+        <footer class="border-top footer text-muted">
+            <div class="container">
+                &copy; 2026 - NanoAgent.Builder - <a asp-area="" asp-page="/Privacy">Privacy</a>
+            </div>
+        </footer>
+    }
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>

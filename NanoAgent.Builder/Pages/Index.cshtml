@@ -1,114 +1,210 @@
 @page
 @model IndexModel
 @{
-    ViewData["Title"] = "NanoAgent Builder";
+    ViewData["Title"] = "Workspace";
+    ViewData["UseBuilderLayout"] = true;
+    var allowedModels = Model.CurrentUsage?.AllowedLlmModels ?? Array.Empty<string>();
+    var defaultPreviewUrl = Url.Page("/Plans") ?? "/Plans";
 }
 
-<div class="row align-items-center mb-4">
-    <div class="col-lg-8">
-        <p class="text-uppercase text-muted fw-semibold mb-2">Clean Architecture SaaS starter</p>
-        <h1 class="display-5 fw-bold">NanoAgent Builder</h1>
-        <p class="lead mb-0">
-            Authenticated users create agent projects inside a single database with SaaS package, LLM model, and monthly token limits.
-        </p>
-    </div>
-    <div class="col-lg-4 mt-3 mt-lg-0">
-        <div class="border rounded-3 p-3 bg-light">
-            <div class="small text-muted">Active database provider</div>
-            <div class="fw-semibold">@Model.DatabaseInfo.Provider</div>
-            <div class="small text-muted">@Model.DatabaseInfo.ConnectionStringName</div>
-            @if (Model.CurrentSubscription is not null)
-            {
-                <hr />
-                <div class="small text-muted">Current package</div>
-                <div class="fw-semibold">@Model.CurrentSubscription.PlanName</div>
-            }
+<div class="builder-workspace">
+    <aside class="builder-chat-panel">
+        <div class="builder-panel-header">
+            <div>
+                <p class="builder-eyebrow mb-1">NanoAgent SaaS workspace</p>
+                <h1 class="builder-title mb-0">Build with chat</h1>
+            </div>
+            <span class="builder-status-pill">Live</span>
+        </div>
+
+        <div class="builder-quota-card">
+            <div class="builder-quota-row">
+                <span>Package</span>
+                <strong>@(Model.CurrentSubscription?.PlanName ?? "Not assigned")</strong>
+            </div>
+            <div class="builder-quota-row">
+                <span>Database</span>
+                <strong>@Model.DatabaseInfo.Provider</strong>
+            </div>
             @if (Model.CurrentUsage is not null)
             {
-                <hr />
-                <div class="small text-muted">Monthly token usage</div>
-                <div class="fw-semibold">@Model.CurrentUsage.UsedTokens.ToString("N0") / @Model.CurrentUsage.MonthlyTokenLimitDisplay</div>
-                <div class="small text-muted">Remaining: @Model.CurrentUsage.RemainingTokensDisplay</div>
+                var usagePercent = Model.CurrentUsage.MonthlyTokenLimit > 0
+                    ? Math.Min(100, (int)Math.Round(Model.CurrentUsage.UsedTokens * 100d / Model.CurrentUsage.MonthlyTokenLimit))
+                    : 0;
+
+                <div class="builder-usage mt-3">
+                    <div class="d-flex justify-content-between small mb-1">
+                        <span>Monthly tokens</span>
+                        <span>@Model.CurrentUsage.UsedTokens.ToString("N0") / @Model.CurrentUsage.MonthlyTokenLimitDisplay</span>
+                    </div>
+                    <div class="progress builder-progress" role="progressbar" aria-label="Monthly token usage" aria-valuenow="@usagePercent" aria-valuemin="0" aria-valuemax="100">
+                        <div class="progress-bar" style="width: @usagePercent%"></div>
+                    </div>
+                    <div class="small text-muted mt-1">Remaining: @Model.CurrentUsage.RemainingTokensDisplay</div>
+                </div>
             }
         </div>
-    </div>
-</div>
 
-<div class="row g-4">
-    <div class="col-lg-5">
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <h2 class="h4 mb-3">Create project</h2>
-
-                <form method="post">
-                    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
-
-                    <div class="mb-3">
-                        <label asp-for="Input.Name" class="form-label"></label>
-                        <input asp-for="Input.Name" class="form-control" placeholder="Example: Research Agent" />
-                        <span asp-validation-for="Input.Name" class="text-danger"></span>
-                    </div>
-
-                    <div class="mb-3">
-                        <label asp-for="Input.Description" class="form-label"></label>
-                        <textarea asp-for="Input.Description" class="form-control" rows="4" placeholder="What should this agent project do?"></textarea>
-                        <span asp-validation-for="Input.Description" class="text-danger"></span>
-                    </div>
-
-                    <div class="mb-3">
-                        <label asp-for="Input.LlmModel" class="form-label"></label>
-                        <select asp-for="Input.LlmModel" class="form-select">
-                            @foreach (var modelName in Model.CurrentUsage?.AllowedLlmModels ?? Enumerable.Empty<string>())
-                            {
-                                <option value="@modelName">@modelName</option>
-                            }
-                        </select>
-                        <span asp-validation-for="Input.LlmModel" class="text-danger"></span>
-                        <div class="form-text">Model choices are limited by your current package.</div>
-                    </div>
-
-                    <button type="submit" class="btn btn-primary">Save project</button>
-                    <a class="btn btn-outline-secondary" asp-page="/Plans">Change package</a>
-                </form>
+        <div class="builder-chat-feed" aria-label="Builder chat preview">
+            <div class="builder-message builder-message-user">
+                <span class="builder-avatar">U</span>
+                <div>
+                    <div class="builder-message-label">You</div>
+                    <p>Create an agent app with auth, SaaS billing, token limits, and model limits.</p>
+                </div>
+            </div>
+            <div class="builder-message builder-message-ai">
+                <span class="builder-avatar builder-avatar-ai">N</span>
+                <div>
+                    <div class="builder-message-label">NanoAgent</div>
+                    <p>I can scaffold the app, persist projects in the single SaaS database, and enforce your selected package rules.</p>
+                </div>
             </div>
         </div>
-    </div>
 
-    <div class="col-lg-7">
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <h2 class="h4 mb-3">Projects</h2>
+        <div class="builder-create-card">
+            <div class="d-flex align-items-start justify-content-between gap-3 mb-3">
+                <div>
+                    <h2 class="h5 mb-1">Create project</h2>
+                    <p class="text-muted small mb-0">This is the real project form. The chat composer below is a UI placeholder.</p>
+                </div>
+                <a class="btn btn-sm btn-outline-secondary" asp-page="/Plans">Plans</a>
+            </div>
 
-                @if (Model.Projects.Count == 0)
-                {
-                    <p class="text-muted mb-0">No projects yet. Create one to verify auth, SaaS quota, LLM model limits, token entitlements, and database persistence.</p>
-                }
-                else
-                {
-                    <div class="list-group list-group-flush">
-                        @foreach (var project in Model.Projects)
+            <form method="post">
+                <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+                <div class="mb-3">
+                    <label asp-for="Input.Name" class="form-label"></label>
+                    <input asp-for="Input.Name" class="form-control builder-input" placeholder="Example: Research Agent" />
+                    <span asp-validation-for="Input.Name" class="text-danger small"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="Input.Description" class="form-label"></label>
+                    <textarea asp-for="Input.Description" class="form-control builder-input" rows="4" placeholder="Describe what this agent should build or automate."></textarea>
+                    <span asp-validation-for="Input.Description" class="text-danger small"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="Input.LlmModel" class="form-label"></label>
+                    <select asp-for="Input.LlmModel" class="form-select builder-input">
+                        @foreach (var modelName in allowedModels)
                         {
-                            <div class="list-group-item px-0">
-                                <div class="d-flex justify-content-between gap-3">
-                                    <h3 class="h6 mb-1">@project.Name</h3>
-                                    <span class="small text-muted text-nowrap">@project.CreatedAtUtc.ToLocalTime().ToString("g")</span>
-                                </div>
-                                <div class="small text-muted">Model: @project.LlmModel</div>
-                                @if (User.IsInRole("Admin"))
-                                {
-                                    <div class="small text-muted">Owner: @project.OwnerUserId</div>
-                                }
-                                @if (!string.IsNullOrWhiteSpace(project.Description))
-                                {
-                                    <p class="mb-0 text-muted">@project.Description</p>
-                                }
-                            </div>
+                            <option value="@modelName">@modelName</option>
                         }
-                    </div>
+                    </select>
+                    <span asp-validation-for="Input.LlmModel" class="text-danger small"></span>
+                    <div class="form-text">Models are limited by your package.</div>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100">Save project</button>
+            </form>
+        </div>
+
+        <div class="builder-composer" aria-label="Chat composer placeholder">
+            <textarea class="form-control builder-input" rows="2" placeholder="Ask NanoAgent to change the app..." disabled></textarea>
+            <button class="btn btn-dark" type="button" disabled>Send</button>
+        </div>
+    </aside>
+
+    <section class="builder-stage">
+        <div class="builder-stage-header">
+            <div>
+                <p class="builder-eyebrow mb-1">Right side workspace</p>
+                <h2 class="builder-stage-title mb-0">App preview + IDE placeholder</h2>
+            </div>
+            <div class="builder-stage-actions">
+                <a class="btn btn-outline-secondary btn-sm" asp-page="/Billing/Index">Billing</a>
+                @if (User.IsInRole("Admin"))
+                {
+                    <a class="btn btn-outline-secondary btn-sm" asp-page="/Admin/Index">Admin</a>
                 }
             </div>
         </div>
-    </div>
+
+        <div class="builder-right-grid">
+            <section class="builder-preview-card">
+                <div class="builder-browser-toolbar">
+                    <button type="button" class="builder-icon-button" id="previewReloadButton" aria-label="Reload preview">↻</button>
+                    <div class="builder-address-bar">
+                        <span class="builder-lock">⌁</span>
+                        <input id="previewAddressInput" type="text" value="@defaultPreviewUrl" aria-label="Preview URL" />
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="previewGoButton">Go</button>
+                </div>
+                <iframe id="appPreviewFrame" class="builder-preview-frame" title="Application preview" src="@defaultPreviewUrl"></iframe>
+            </section>
+
+            <section class="builder-ide-card" aria-label="IDE placeholder">
+                <div class="builder-ide-header">
+                    <div>
+                        <p class="builder-eyebrow mb-1">IDE placeholder</p>
+                        <h3 class="h6 mb-0">Code workspace shell</h3>
+                    </div>
+                    <span class="builder-status-pill builder-status-muted">Placeholder only</span>
+                </div>
+
+                <div class="builder-ide-body">
+                    <div class="builder-file-tree">
+                        <div class="builder-tree-title">Files</div>
+                        <div>▾ Pages</div>
+                        <div class="ps-3">Index.cshtml</div>
+                        <div class="ps-3">Billing</div>
+                        <div>▾ Application</div>
+                        <div class="ps-3">Saas</div>
+                        <div>▾ Infrastructure</div>
+                        <div class="ps-3">Payments</div>
+                    </div>
+                    <div class="builder-code-placeholder">
+                        <div class="builder-code-line w-75"></div>
+                        <div class="builder-code-line w-50"></div>
+                        <div class="builder-code-line w-90"></div>
+                        <div class="builder-code-line w-60"></div>
+                        <div class="builder-code-note">A full IDE is intentionally not implemented here. This panel is ready for Monaco, CodeMirror, or a future hosted editor integration.</div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <section class="builder-projects-card">
+            <div class="d-flex align-items-center justify-content-between gap-3 mb-3">
+                <div>
+                    <p class="builder-eyebrow mb-1">Saved projects</p>
+                    <h3 class="h5 mb-0">Project history</h3>
+                </div>
+                <span class="badge text-bg-light">@Model.Projects.Count total</span>
+            </div>
+
+            @if (Model.Projects.Count == 0)
+            {
+                <p class="text-muted mb-0">No projects yet. Create one from the chat panel to verify auth, SaaS quota, model limits, token entitlements, and persistence.</p>
+            }
+            else
+            {
+                <div class="builder-project-list">
+                    @foreach (var project in Model.Projects)
+                    {
+                        <article class="builder-project-item">
+                            <div class="d-flex justify-content-between gap-3">
+                                <h4 class="h6 mb-1">@project.Name</h4>
+                                <span class="small text-muted text-nowrap">@project.CreatedAtUtc.ToLocalTime().ToString("g")</span>
+                            </div>
+                            <div class="small text-muted">Model: @project.LlmModel</div>
+                            @if (User.IsInRole("Admin"))
+                            {
+                                <div class="small text-muted">Owner: @project.OwnerUserId</div>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(project.Description))
+                            {
+                                <p class="mb-0 mt-2 text-muted">@project.Description</p>
+                            }
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+    </section>
 </div>
 
 @section Scripts {

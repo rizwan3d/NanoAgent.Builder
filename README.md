@@ -26,6 +26,18 @@ This solution is structured around project-level Clean Architecture, SOLID princ
 - Stripe Checkout for paid packages and Stripe Billing Portal for paid users.
 - Stripe webhooks activate, update, mark past-due, and cancel paid subscriptions in the same application database.
 
+
+## Workspace UI
+
+The authenticated home page now uses a builder layout:
+
+- Left side chat/build panel with SaaS package summary, token usage, model-limited project creation, and a disabled chat composer placeholder.
+- Right side app preview panel with an iframe, address bar, Go button, and Reload button.
+- Right side IDE placeholder panel only; no full IDE implementation is included yet. It is ready for a future Monaco, CodeMirror, or hosted editor integration.
+- Saved projects remain visible below the preview/IDE area.
+
+The preview iframe defaults to `/Plans`. Type another local route such as `/Billing`, `/Admin`, or `/Privacy` into the address bar and press Enter or Go to preview that page.
+
 ## Default admin account
 
 Configured in `appsettings.json` under `SeedAdmin`:
