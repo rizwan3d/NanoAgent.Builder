@@ -71,7 +71,7 @@ public class IndexModel : PageModel
         try
         {
             var project = await _projectService.CreateAsync(
-                new CreateAgentProjectRequest(CreateInput.Name, null, CreateInput.LlmModel),
+                new CreateAgentProjectRequest(CreateInput.Name, CreateInput.Description, CreateInput.LlmModel),
                 cancellationToken);
 
             return RedirectToPage("/Workspace", new { projectId = project.Id });
@@ -141,6 +141,10 @@ public class IndexModel : PageModel
         [StringLength(200)]
         [Display(Name = "Project name")]
         public string Name { get; set; } = string.Empty;
+
+        [StringLength(1000)]
+        [Display(Name = "Project description")]
+        public string? Description { get; set; }
 
         [Required]
         [Display(Name = "LLM model")]
