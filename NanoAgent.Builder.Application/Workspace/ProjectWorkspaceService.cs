@@ -1,4 +1,6 @@
+using System.Text;
 using NanoAgent.Builder.Application.Abstractions;
+using NanoAgent.Builder.Application.LLM;
 using NanoAgent.Builder.Application.Projects;
 using NanoAgent.Builder.Application.Saas;
 using NanoAgent.Builder.Domain.Common;
@@ -13,6 +15,7 @@ internal sealed class ProjectWorkspaceService : IProjectWorkspaceService
     private readonly IProjectStorageRepository _storage;
     private readonly IProjectWorkspaceFileSystem _workspaceFileSystem;
     private readonly ITokenUsageService _tokenUsageService;
+    private readonly ILLMProvider _provider;
     private readonly IUnitOfWork _unitOfWork;
 
     public ProjectWorkspaceService(
@@ -21,6 +24,7 @@ internal sealed class ProjectWorkspaceService : IProjectWorkspaceService
         IProjectStorageRepository storage,
         IProjectWorkspaceFileSystem workspaceFileSystem,
         ITokenUsageService tokenUsageService,
+        ILLMProvider provider,
         IUnitOfWork unitOfWork)
     {
         _currentUser = currentUser;
@@ -28,6 +32,7 @@ internal sealed class ProjectWorkspaceService : IProjectWorkspaceService
         _storage = storage;
         _workspaceFileSystem = workspaceFileSystem;
         _tokenUsageService = tokenUsageService;
+        _provider = provider;
         _unitOfWork = unitOfWork;
     }
 
@@ -61,23 +66,15 @@ internal sealed class ProjectWorkspaceService : IProjectWorkspaceService
 
         await _tokenUsageService.EnsureModelAllowedAsync(userId, selectedModel, cancellationToken);
 
-        var inputTokens = EstimateTokens(request.Message);
-        var generatedFilePath = BuildGeneratedFilePath(existingFiles);
-        var assistantResponse = $"Created `{generatedFilePath}` from your request. Open it in the Code tab to review or edit it manually.";
-        var outputTokens = EstimateTokens(assistantResponse);
-        var usage = await _tokenUsageService.RecordUsageAsync(
-            userId,
-            selectedModel,
-            inputTokens,
-            outputTokens,
-            cancellationToken);
+        var estimatedInputTokens = EstimateTokens(request.Message) + EstimateFileTokens(existingFiles);
+        await _tokenUsageService.EnsureCanUseTokensAsync(userId, selectedModel, estimatedInputTokens, cancellationToken);
 
         var userMessage = new ProjectMessage(
             project.Id,
             "user",
             request.Message,
             selectedModel,
-            inputTokens,
+            estimatedInputTokens,
             0);
 
         var run = new ProjectRun(
@@ -85,42 +82,107 @@ internal sealed class ProjectWorkspaceService : IProjectWorkspaceService
             "running",
             selectedModel,
             request.Message,
-            inputTokens,
+            estimatedInputTokens,
             0);
-
-        var generatedFile = new ProjectFile(
-            project.Id,
-            generatedFilePath,
-            "markdown",
-            BuildGeneratedFileContent(project.Name, request.Message, selectedModel));
-
-        run.Complete(outputTokens);
-
-        var systemMessage = new ProjectMessage(
-            project.Id,
-            "assistant",
-            assistantResponse,
-            selectedModel,
-            0,
-            outputTokens);
 
         await _storage.AddMessageAsync(userMessage, cancellationToken);
         await _storage.AddRunAsync(run, cancellationToken);
-        await _storage.AddFileAsync(generatedFile, cancellationToken);
-        await _storage.AddMessageAsync(systemMessage, cancellationToken);
-        await _storage.AddArtifactAsync(
-            new GeneratedArtifact(
-                project.Id,
-                run.Id,
-                $"Generated file {generatedFile.Path}",
-                "generated-file",
-                generatedFile.Path,
-                generatedFile.Content),
-            cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
-        await _workspaceFileSystem.WriteFileAsync(project, generatedFile, cancellationToken);
 
-        return await BuildWorkspaceAsync(project, usage, generatedFile.Id, cancellationToken);
+        try
+        {
+            var providerRequest = new LLMGenerationRequest(
+                project.Id,
+                project.Name,
+                project.Description,
+                selectedModel,
+                request.Message,
+                existingFiles.Select(MapFile).ToList());
+
+            var textBuilder = new StringBuilder();
+            var patches = new List<GeneratedFilePatch>();
+            var inputTokens = estimatedInputTokens;
+            var outputTokens = 0;
+
+            await foreach (var streamEvent in _provider.GenerateFilePatchesAsync(providerRequest, cancellationToken))
+            {
+                switch (streamEvent)
+                {
+                    case LLMTextDelta textDelta:
+                        textBuilder.Append(textDelta.Text);
+                        break;
+
+                    case LLMFilePatchDelta patchDelta:
+                        patches.Add(patchDelta.Patch);
+                        break;
+
+                    case LLMUsageDelta usageDelta:
+                        inputTokens = usageDelta.InputTokens > 0 ? usageDelta.InputTokens : inputTokens;
+                        outputTokens = usageDelta.OutputTokens > 0 ? usageDelta.OutputTokens : outputTokens;
+                        break;
+
+                    case LLMGenerationCompleted completed:
+                        if (completed.Patches.Count > 0)
+                        {
+                            patches.Clear();
+                            patches.AddRange(completed.Patches);
+                        }
+
+                        inputTokens = completed.InputTokens > 0 ? completed.InputTokens : inputTokens;
+                        outputTokens = completed.OutputTokens > 0 ? completed.OutputTokens : outputTokens;
+                        break;
+                }
+            }
+
+            if (patches.Count == 0)
+            {
+                throw new DomainException("No file patches were returned.");
+            }
+
+            if (outputTokens <= 0)
+            {
+                outputTokens = EstimateTokens(textBuilder.ToString()) + patches.Sum(patch => EstimateTokens(patch.Content));
+            }
+
+            var usage = await _tokenUsageService.RecordUsageAsync(
+                userId,
+                selectedModel,
+                inputTokens,
+                outputTokens,
+                cancellationToken);
+
+            var selectedFileId = await ApplyPatchesAsync(project, run.Id, patches, cancellationToken);
+            run.Complete(outputTokens);
+
+            var summary = BuildPatchSummary(patches);
+            await _storage.AddMessageAsync(
+                new ProjectMessage(
+                    project.Id,
+                    "assistant",
+                    summary,
+                    selectedModel,
+                    0,
+                    outputTokens),
+                cancellationToken);
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            return await BuildWorkspaceAsync(project, usage, selectedFileId, cancellationToken);
+        }
+        catch (Exception exception) when (exception is DomainException or HttpRequestException or TaskCanceledException or InvalidOperationException)
+        {
+            run.Fail(exception.Message);
+            await _storage.AddMessageAsync(
+                new ProjectMessage(
+                    project.Id,
+                    "assistant",
+                    $"The run could not be completed: {exception.Message}",
+                    selectedModel,
+                    0,
+                    0),
+                cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            throw;
+        }
     }
 
     public async Task<ProjectWorkspaceDto> UpdateFileAsync(
@@ -147,6 +209,46 @@ internal sealed class ProjectWorkspaceService : IProjectWorkspaceService
 
         var usage = await _tokenUsageService.GetCurrentUsageForUserAsync(userId, cancellationToken);
         return await BuildWorkspaceAsync(project, usage, file.Id, cancellationToken);
+    }
+
+    private async Task<Guid?> ApplyPatchesAsync(
+        AgentProject project,
+        Guid runId,
+        IReadOnlyList<GeneratedFilePatch> patches,
+        CancellationToken cancellationToken)
+    {
+        Guid? selectedFileId = null;
+
+        foreach (var patch in patches)
+        {
+            EnsureSafePatch(patch);
+            var file = await _storage.GetFileByPathAsync(project.Id, patch.Path, cancellationToken);
+            if (file is null)
+            {
+                file = new ProjectFile(project.Id, patch.Path, patch.Language, patch.Content);
+                await _storage.AddFileAsync(file, cancellationToken);
+            }
+            else
+            {
+                file.SetLanguage(patch.Language);
+                file.UpdateContent(patch.Content);
+            }
+
+            await _storage.AddArtifactAsync(
+                new GeneratedArtifact(
+                    project.Id,
+                    runId,
+                    $"Updated {patch.Path}",
+                    "file-patch",
+                    patch.Path,
+                    patch.Content),
+                cancellationToken);
+
+            await _workspaceFileSystem.WriteFileAsync(project, file, cancellationToken);
+            selectedFileId = file.Id;
+        }
+
+        return selectedFileId;
     }
 
     private async Task<ProjectWorkspaceDto> BuildWorkspaceAsync(
@@ -209,11 +311,39 @@ internal sealed class ProjectWorkspaceService : IProjectWorkspaceService
         return _currentUser.UserId;
     }
 
+    private static void EnsureSafePatch(GeneratedFilePatch patch)
+    {
+        if (string.IsNullOrWhiteSpace(patch.Path))
+        {
+            throw new DomainException("A file patch path is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(patch.Content))
+        {
+            throw new DomainException($"File patch '{patch.Path}' does not include content.");
+        }
+
+        var normalizedPath = patch.Path.Trim().Replace('\\', '/');
+        if (Path.IsPathRooted(normalizedPath) || normalizedPath.StartsWith("/", StringComparison.Ordinal))
+        {
+            throw new DomainException("File patches must use relative paths.");
+        }
+
+        if (normalizedPath.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Any(segment => segment is "." or ".."))
+        {
+            throw new DomainException("File patches cannot use '.' or '..' path segments.");
+        }
+    }
+
     private static int EstimateTokens(string text)
     {
         var characters = string.IsNullOrWhiteSpace(text) ? 0 : text.Trim().Length;
         return Math.Max(1, (int)Math.Ceiling(characters / 4d));
     }
+
+    private static int EstimateFileTokens(IReadOnlyList<ProjectFile> files) =>
+        files.Sum(file => EstimateTokens(file.Content));
 
     private static Guid? ResolveSelectedFileId(IReadOnlyList<ProjectFile> files, Guid? selectedFileId)
     {
@@ -225,29 +355,12 @@ internal sealed class ProjectWorkspaceService : IProjectWorkspaceService
         return files.FirstOrDefault()?.Id;
     }
 
-    private static string BuildGeneratedFilePath(IReadOnlyList<ProjectFile> files)
+    private static string BuildPatchSummary(IReadOnlyList<GeneratedFilePatch> patches)
     {
-        var nextIndex = files.Count(file => file.Path.StartsWith("generated/", StringComparison.OrdinalIgnoreCase)) + 1;
-        return $"generated/run-{nextIndex:000}.md";
-    }
-
-    private static string BuildGeneratedFileContent(string projectName, string message, string model)
-    {
-        return $"""
-                # Generated Workspace Note
-
-                Project: {projectName}
-                Model: {model}
-                Created: {DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm:ss} UTC
-
-                ## User Request
-
-                {message.Trim()}
-
-                ## Suggested Next Step
-
-                Review this generated note, then update the app files in the workspace editor.
-                """;
+        var paths = string.Join(", ", patches.Select(patch => $"`{patch.Path}`"));
+        return patches.Count == 1
+            ? $"Updated {paths}. Open the Code tab to review the change."
+            : $"Updated {patches.Count} files: {paths}. Open the Code tab to review the changes.";
     }
 
     private static AgentProjectDto MapProject(AgentProject project) =>
