@@ -13,7 +13,7 @@ internal sealed class AgentProjectService : IAgentProjectService
     private readonly ITokenUsageService _tokenUsageService;
     private readonly IProjectStorageRepository _projectStorage;
     private readonly IProjectWorkspaceFileSystem _workspaceFileSystem;
-    private readonly IProjectWorkspaceSetupRunner _setupRunner;
+    private readonly IProjectWorkspaceSetupQueue _setupQueue;
     private readonly IUnitOfWork _unitOfWork;
 
     public AgentProjectService(
@@ -23,7 +23,7 @@ internal sealed class AgentProjectService : IAgentProjectService
         ITokenUsageService tokenUsageService,
         IProjectStorageRepository projectStorage,
         IProjectWorkspaceFileSystem workspaceFileSystem,
-        IProjectWorkspaceSetupRunner setupRunner,
+        IProjectWorkspaceSetupQueue setupQueue,
         IUnitOfWork unitOfWork)
     {
         _currentUser = currentUser;
@@ -32,7 +32,7 @@ internal sealed class AgentProjectService : IAgentProjectService
         _tokenUsageService = tokenUsageService;
         _projectStorage = projectStorage;
         _workspaceFileSystem = workspaceFileSystem;
-        _setupRunner = setupRunner;
+        _setupQueue = setupQueue;
         _unitOfWork = unitOfWork;
     }
 
@@ -63,17 +63,17 @@ internal sealed class AgentProjectService : IAgentProjectService
         var files = await _projectStorage.ListFilesAsync(project.Id, cancellationToken);
         await _workspaceFileSystem.EnsureProjectWorkspaceAsync(project, files, cancellationToken);
 
-        var setupResult = await _setupRunner.PrepareAsync(project, cancellationToken);
         await _projectStorage.AddArtifactAsync(
             new GeneratedArtifact(
                 project.Id,
                 null,
-                setupResult.Succeeded ? "Workspace setup completed" : "Workspace setup needs attention",
+                "Workspace setup queued",
                 "workspace-setup",
                 null,
-                setupResult.ToArtifactContent()),
+                "Workspace setup has been queued and will run shortly."),
             cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _setupQueue.QueueAsync(project.Id, cancellationToken);
 
         return MapToDto(project);
     }
@@ -130,7 +130,7 @@ internal sealed class AgentProjectService : IAgentProjectService
                 npm run dev
                 ```
 
-                The workspace setup runs install and build automatically when the project is created. Review the setup artifact for command output.
+                The workspace setup runs install and build automatically after the project is created. Review the setup artifact for command output.
                 """),
             cancellationToken);
 

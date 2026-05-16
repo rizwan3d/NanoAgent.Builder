@@ -17,6 +17,7 @@ public sealed class ProjectWorkspaceSetupRunner : IProjectWorkspaceSetupRunner
 
     public async Task<ProjectWorkspaceSetupResult> PrepareAsync(
         AgentProject project,
+        Func<ProjectWorkspaceSetupLogEntry, CancellationToken, Task>? logAsync = null,
         CancellationToken cancellationToken = default)
     {
         var projectRootPath = _workspaceFileSystem.GetProjectRootPath(project);
@@ -28,8 +29,16 @@ public sealed class ProjectWorkspaceSetupRunner : IProjectWorkspaceSetupRunner
             new WorkspaceCommand("npm run build")
         })
         {
-            var result = await RunCommandAsync(projectRootPath, command, cancellationToken);
+            await WriteLogAsync(project.Id, "info", $"Running {command.DisplayName}.", logAsync, cancellationToken);
+            var result = await RunCommandAsync(project.Id, projectRootPath, command, logAsync, cancellationToken);
             commands.Add(result);
+
+            await WriteLogAsync(
+                project.Id,
+                result.ExitCode == 0 ? "success" : "error",
+                $"{command.DisplayName} finished with exit code {result.ExitCode}.",
+                logAsync,
+                cancellationToken);
 
             if (result.ExitCode != 0)
             {
@@ -44,8 +53,10 @@ public sealed class ProjectWorkspaceSetupRunner : IProjectWorkspaceSetupRunner
     }
 
     private static async Task<ProjectWorkspaceCommandResult> RunCommandAsync(
+        Guid projectId,
         string workingDirectory,
         WorkspaceCommand command,
+        Func<ProjectWorkspaceSetupLogEntry, CancellationToken, Task>? logAsync,
         CancellationToken cancellationToken)
     {
         using var timeoutSource = new CancellationTokenSource(CommandTimeout);
@@ -66,6 +77,7 @@ public sealed class ProjectWorkspaceSetupRunner : IProjectWorkspaceSetupRunner
             if (args.Data is not null)
             {
                 output.AppendLine(args.Data);
+                _ = WriteLogAsync(projectId, "info", args.Data, logAsync, CancellationToken.None);
             }
         };
 
@@ -74,6 +86,7 @@ public sealed class ProjectWorkspaceSetupRunner : IProjectWorkspaceSetupRunner
             if (args.Data is not null)
             {
                 error.AppendLine(args.Data);
+                _ = WriteLogAsync(projectId, "error", args.Data, logAsync, CancellationToken.None);
             }
         };
 
@@ -152,6 +165,30 @@ public sealed class ProjectWorkspaceSetupRunner : IProjectWorkspaceSetupRunner
             UseShellExecute = false,
             CreateNoWindow = true
         };
+    }
+
+    private static async Task WriteLogAsync(
+        Guid projectId,
+        string level,
+        string message,
+        Func<ProjectWorkspaceSetupLogEntry, CancellationToken, Task>? logAsync,
+        CancellationToken cancellationToken)
+    {
+        if (logAsync is null || string.IsNullOrWhiteSpace(message))
+        {
+            return;
+        }
+
+        try
+        {
+            await logAsync(
+                new ProjectWorkspaceSetupLogEntry(projectId, DateTimeOffset.UtcNow, level, message.Trim()),
+                cancellationToken);
+        }
+        catch
+        {
+            // Log delivery must not stop command execution.
+        }
     }
 
     private static void TryKillProcess(Process process)
