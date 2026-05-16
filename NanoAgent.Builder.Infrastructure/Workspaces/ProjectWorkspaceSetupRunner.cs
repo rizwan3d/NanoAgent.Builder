@@ -5,7 +5,7 @@ using NanoAgent.Builder.Domain.Projects;
 
 namespace NanoAgent.Builder.Infrastructure.Workspaces;
 
-internal sealed class ProjectWorkspaceSetupRunner : IProjectWorkspaceSetupRunner
+public sealed class ProjectWorkspaceSetupRunner : IProjectWorkspaceSetupRunner
 {
     private static readonly TimeSpan CommandTimeout = TimeSpan.FromMinutes(5);
     private readonly IProjectWorkspaceFileSystem _workspaceFileSystem;
