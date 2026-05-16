@@ -9,6 +9,7 @@ using NanoAgent.Builder.Infrastructure.Data;
 using NanoAgent.Builder.Infrastructure.Data.Repositories;
 using NanoAgent.Builder.Infrastructure.Database;
 using NanoAgent.Builder.Infrastructure.Identity;
+using NanoAgent.Builder.Infrastructure.LLM;
 using NanoAgent.Builder.Infrastructure.Payments;
 using NanoAgent.Builder.Infrastructure.Workspaces;
 
@@ -54,6 +55,7 @@ public static class DependencyInjection
                 : Path.GetFullPath(Path.Combine(contentRootPath, configuredRootPath));
         });
         services.Configure<StripeOptions>(configuration.GetSection(StripeOptions.SectionName));
+        services.Configure<LLMProviderOptions>(configuration.GetSection(LLMProviderOptions.SectionName));
 
         services.AddDbContext<BuilderDbContext>(options =>
         {
@@ -97,6 +99,7 @@ public static class DependencyInjection
         services.AddScoped<IPaymentGateway, StripePaymentGateway>();
         services.AddScoped<IStripeWebhookHandler, StripeWebhookHandler>();
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
+        services.AddHttpClient<ILLMProvider, CompatibleJsonLLMProvider>();
         services.AddSingleton<IDatabaseInfoProvider>(
             new ConfiguredDatabaseInfoProvider(new DatabaseInfo(provider, connectionStringName)));
 
