@@ -4,6 +4,7 @@ using NanoAgent.Builder.Application.Saas;
 using NanoAgent.Builder.Domain.Common;
 using NanoAgent.Builder.Infrastructure;
 using NanoAgent.Builder.Infrastructure.Database;
+using NanoAgent.Builder.Infrastructure.Workspaces;
 using NanoAgent.Builder.Security;
 
 namespace NanoAgent.Builder;
@@ -26,6 +27,7 @@ public class Program
         builder.Services.AddScoped<ICurrentUserContext, CurrentUserContext>();
         builder.Services.AddApplication();
         builder.Services.AddInfrastructure(builder.Configuration, builder.Environment.ContentRootPath);
+        builder.Services.AddScoped<IProjectWorkspaceSetupRunner, ProjectWorkspaceSetupRunner>();
 
         builder.Services.ConfigureApplicationCookie(options =>
         {

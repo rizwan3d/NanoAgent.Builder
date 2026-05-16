@@ -62,6 +62,10 @@
                             <div class="dashboard-project-main">
                                 <div>
                                     <h2 class="h5 mb-1">@project.Name</h2>
+                                    @if (!string.IsNullOrWhiteSpace(project.Description))
+                                    {
+                                        <div class="small visually-muted">@project.Description</div>
+                                    }
                                     <div class="small visually-muted">Model: @project.LlmModel</div>
                                     <div class="small visually-muted">Created: @project.CreatedAtUtc.ToLocalTime().ToString("g")</div>
                                     @if (User.IsInRole("Admin"))
@@ -99,12 +103,17 @@
                     <h2 class="modal-title fs-5" id="createProjectModalLabel">New project</h2>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="modal-body">
+                <div class="modal-body d-grid gap-3">
                     <input asp-for="CreateInput.LlmModel" type="hidden" value="@defaultModel" />
                     <div>
                         <label asp-for="CreateInput.Name" class="form-label"></label>
                         <input asp-for="CreateInput.Name" class="form-control builder-input" placeholder="Project name" />
                         <span asp-validation-for="CreateInput.Name" class="text-danger small"></span>
+                    </div>
+                    <div>
+                        <label asp-for="CreateInput.Description" class="form-label"></label>
+                        <textarea asp-for="CreateInput.Description" class="form-control builder-input" rows="4" placeholder="What should this project become?"></textarea>
+                        <span asp-validation-for="CreateInput.Description" class="text-danger small"></span>
                     </div>
                 </div>
                 <div class="modal-footer">
