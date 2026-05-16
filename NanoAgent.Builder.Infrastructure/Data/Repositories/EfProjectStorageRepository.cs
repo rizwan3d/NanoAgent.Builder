@@ -24,6 +24,13 @@ internal sealed class EfProjectStorageRepository : IProjectStorageRepository
         await _context.ProjectFiles
             .FirstOrDefaultAsync(file => file.ProjectId == projectId && file.Id == fileId, cancellationToken);
 
+    public async Task<ProjectFile?> GetFileByPathAsync(Guid projectId, string path, CancellationToken cancellationToken = default)
+    {
+        var normalizedPath = path.Trim().Replace('\\', '/');
+        return await _context.ProjectFiles
+            .FirstOrDefaultAsync(file => file.ProjectId == projectId && file.Path == normalizedPath, cancellationToken);
+    }
+
     public async Task<IReadOnlyList<ProjectMessage>> ListMessagesAsync(Guid projectId, int take = 50, CancellationToken cancellationToken = default) =>
         await _context.ProjectMessages
             .AsNoTracking()
