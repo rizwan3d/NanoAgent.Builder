@@ -13,6 +13,7 @@ internal sealed class AgentProjectService : IAgentProjectService
     private readonly ITokenUsageService _tokenUsageService;
     private readonly IProjectStorageRepository _projectStorage;
     private readonly IProjectWorkspaceFileSystem _workspaceFileSystem;
+    private readonly IProjectWorkspaceSetupRunner _setupRunner;
     private readonly IUnitOfWork _unitOfWork;
 
     public AgentProjectService(
@@ -22,6 +23,7 @@ internal sealed class AgentProjectService : IAgentProjectService
         ITokenUsageService tokenUsageService,
         IProjectStorageRepository projectStorage,
         IProjectWorkspaceFileSystem workspaceFileSystem,
+        IProjectWorkspaceSetupRunner setupRunner,
         IUnitOfWork unitOfWork)
     {
         _currentUser = currentUser;
@@ -30,6 +32,7 @@ internal sealed class AgentProjectService : IAgentProjectService
         _tokenUsageService = tokenUsageService;
         _projectStorage = projectStorage;
         _workspaceFileSystem = workspaceFileSystem;
+        _setupRunner = setupRunner;
         _unitOfWork = unitOfWork;
     }
 
@@ -56,10 +59,21 @@ internal sealed class AgentProjectService : IAgentProjectService
         await _projects.AddAsync(project, cancellationToken);
         await SeedProjectStorageAsync(project, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
-        await _workspaceFileSystem.EnsureProjectWorkspaceAsync(
-            project,
-            await _projectStorage.ListFilesAsync(project.Id, cancellationToken),
+
+        var files = await _projectStorage.ListFilesAsync(project.Id, cancellationToken);
+        await _workspaceFileSystem.EnsureProjectWorkspaceAsync(project, files, cancellationToken);
+
+        var setupResult = await _setupRunner.PrepareAsync(project, cancellationToken);
+        await _projectStorage.AddArtifactAsync(
+            new GeneratedArtifact(
+                project.Id,
+                null,
+                setupResult.Succeeded ? "Workspace setup completed" : "Workspace setup needs attention",
+                "workspace-setup",
+                null,
+                setupResult.ToArtifactContent()),
             cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return MapToDto(project);
     }
@@ -82,9 +96,15 @@ internal sealed class AgentProjectService : IAgentProjectService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
-
     private async Task SeedProjectStorageAsync(AgentProject project, CancellationToken cancellationToken)
     {
+        var description = string.IsNullOrWhiteSpace(project.Description)
+            ? "A focused product workspace ready for planning, editing, and previewing."
+            : project.Description;
+        var packageName = BuildPackageName(project.Name);
+        var titleLiteral = ToTypeScriptString(project.Name);
+        var descriptionLiteral = ToTypeScriptString(description);
+
         await _projectStorage.AddFileAsync(
             new ProjectFile(
                 project.Id,
@@ -93,21 +113,24 @@ internal sealed class AgentProjectService : IAgentProjectService
                 $"""
                 # {project.Name}
 
-                This project starts with a minimal Next.js app.
+                {description}
 
                 ## Starter stack
 
-                - Next.js with the App Router
-                - React 18
+                - App Router
+                - Component-based pages
                 - TypeScript
+                - Local workspace files
 
-                ## Key files
+                ## Local commands
 
-                - `app/layout.tsx`
-                - `app/page.tsx`
-                - `app/globals.css`
-                - `package.json`
-                - `tsconfig.json`
+                ```bash
+                npm install
+                npm run build
+                npm run dev
+                ```
+
+                The workspace setup runs install and build automatically when the project is created. Review the setup artifact for command output.
                 """),
             cancellationToken);
 
@@ -116,16 +139,15 @@ internal sealed class AgentProjectService : IAgentProjectService
                 project.Id,
                 "package.json",
                 "json",
-                """
+                $$"""
                 {
-                  "name": "nanoagent-next-app",
+                  "name": "{{packageName}}",
                   "private": true,
                   "version": "0.1.0",
                   "scripts": {
                     "dev": "next dev",
                     "build": "next build",
-                    "start": "next start",
-                    "lint": "next lint"
+                    "start": "next start"
                   },
                   "dependencies": {
                     "next": "14.2.15",
@@ -136,8 +158,6 @@ internal sealed class AgentProjectService : IAgentProjectService
                     "@types/node": "22.10.2",
                     "@types/react": "18.3.12",
                     "@types/react-dom": "18.3.1",
-                    "eslint": "8.57.1",
-                    "eslint-config-next": "14.2.15",
                     "typescript": "5.6.3"
                   }
                 }
@@ -186,7 +206,7 @@ internal sealed class AgentProjectService : IAgentProjectService
                 /// <reference types="next" />
                 /// <reference types="next/image-types/global" />
 
-                // This file is auto-generated by Next.js and should not be edited manually.
+                // This file is generated by the framework and should not be edited manually.
                 """),
             cancellationToken);
 
@@ -209,13 +229,13 @@ internal sealed class AgentProjectService : IAgentProjectService
                 project.Id,
                 "app/layout.tsx",
                 "typescript",
-                """
+                $$"""
                 import type { Metadata } from "next";
                 import "./globals.css";
 
                 export const metadata: Metadata = {
-                  title: "NanoAgent Next App",
-                  description: "A Next.js starter generated for NanoAgent Builder."
+                  title: {{titleLiteral}},
+                  description: {{descriptionLiteral}}
                 };
 
                 export default function RootLayout({
@@ -237,16 +257,32 @@ internal sealed class AgentProjectService : IAgentProjectService
                 project.Id,
                 "app/page.tsx",
                 "typescript",
-                """
+                $$"""
+                const projectName = {{titleLiteral}};
+                const projectDescription = {{descriptionLiteral}};
+
+                const sections = [
+                  "Shape the landing page",
+                  "Add product flows",
+                  "Preview every change"
+                ];
+
                 export default function HomePage() {
                   return (
                     <main className="page-shell">
                       <section className="hero-card">
-                        <p className="eyebrow">NanoAgent Builder</p>
-                        <h1>Next.js project created successfully.</h1>
-                        <p className="lead">
-                          This starter uses the App Router and is ready for the workspace chat to evolve.
-                        </p>
+                        <p className="eyebrow">Project workspace</p>
+                        <h1>{projectName}</h1>
+                        <p className="lead">{projectDescription}</p>
+                        <div className="section-grid">
+                          {sections.map((section) => (
+                            <article className="section-card" key={section}>
+                              <span>0{sections.indexOf(section) + 1}</span>
+                              <h2>{section}</h2>
+                              <p>Use the editor to turn this starter into a focused product experience.</p>
+                            </article>
+                          ))}
+                        </div>
                       </section>
                     </main>
                   );
@@ -263,7 +299,7 @@ internal sealed class AgentProjectService : IAgentProjectService
                 :root {
                   color-scheme: light;
                   --background: #f4efe7;
-                  --surface: rgba(255, 255, 255, 0.88);
+                  --surface: rgba(255, 255, 255, 0.9);
                   --text: #1f1b18;
                   --muted: #6f6258;
                   --accent: #c96f3b;
@@ -297,8 +333,8 @@ internal sealed class AgentProjectService : IAgentProjectService
                 }
 
                 .hero-card {
-                  width: min(720px, 100%);
-                  padding: 48px;
+                  width: min(980px, 100%);
+                  padding: clamp(28px, 6vw, 56px);
                   border: 1px solid var(--border);
                   border-radius: 28px;
                   background: var(--surface);
@@ -316,16 +352,47 @@ internal sealed class AgentProjectService : IAgentProjectService
 
                 h1 {
                   margin: 0;
-                  font-size: clamp(2.5rem, 7vw, 4.75rem);
+                  font-size: clamp(2.6rem, 7vw, 5rem);
                   line-height: 0.95;
                 }
 
                 .lead {
                   margin: 20px 0 0;
-                  max-width: 40rem;
+                  max-width: 48rem;
                   color: var(--muted);
                   font-size: 1.1rem;
                   line-height: 1.7;
+                }
+
+                .section-grid {
+                  display: grid;
+                  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+                  gap: 16px;
+                  margin-top: 36px;
+                }
+
+                .section-card {
+                  padding: 20px;
+                  border: 1px solid var(--border);
+                  border-radius: 20px;
+                  background: rgba(255, 255, 255, 0.7);
+                }
+
+                .section-card span {
+                  color: var(--accent);
+                  font-size: 0.8rem;
+                  font-weight: 700;
+                }
+
+                .section-card h2 {
+                  margin: 12px 0 8px;
+                  font-size: 1.1rem;
+                }
+
+                .section-card p {
+                  margin: 0;
+                  color: var(--muted);
+                  line-height: 1.6;
                 }
                 """),
             cancellationToken);
@@ -338,6 +405,8 @@ internal sealed class AgentProjectService : IAgentProjectService
                 $$"""
                 {
                   "projectId": "{{project.Id}}",
+                  "projectName": {{ToJsonString(project.Name)}},
+                  "description": {{ToJsonString(description)}},
                   "llmModel": "{{project.LlmModel}}",
                   "storage": {
                     "files": "ProjectFiles",
@@ -353,10 +422,10 @@ internal sealed class AgentProjectService : IAgentProjectService
             new GeneratedArtifact(
                 project.Id,
                 null,
-                "Initial workspace artifact",
+                "Initial workspace files",
                 "workspace-note",
                 "README.md",
-                "Starter Next.js project storage was created."),
+                "A project-specific starter was created and queued for setup."),
             cancellationToken);
     }
 
@@ -392,6 +461,26 @@ internal sealed class AgentProjectService : IAgentProjectService
 
         return _currentUser.UserId;
     }
+
+    private static string BuildPackageName(string projectName)
+    {
+        var characters = projectName
+            .Trim()
+            .ToLowerInvariant()
+            .Select(character => char.IsLetterOrDigit(character) ? character : '-')
+            .ToArray();
+        var slug = string.Join('-', new string(characters).Split('-', StringSplitOptions.RemoveEmptyEntries));
+        return string.IsNullOrWhiteSpace(slug) ? "workspace-app" : slug;
+    }
+
+    private static string ToTypeScriptString(string value) => ToJsonString(value);
+
+    private static string ToJsonString(string value) =>
+        "\"" + value
+            .Replace("\\", "\\\\", StringComparison.Ordinal)
+            .Replace("\"", "\\\"", StringComparison.Ordinal)
+            .Replace("\r", "\\r", StringComparison.Ordinal)
+            .Replace("\n", "\\n", StringComparison.Ordinal) + "\"";
 
     private static AgentProjectDto MapToDto(AgentProject project) =>
         new(project.Id, project.OwnerUserId, project.Name, project.Description, project.LlmModel, project.CreatedAtUtc);
