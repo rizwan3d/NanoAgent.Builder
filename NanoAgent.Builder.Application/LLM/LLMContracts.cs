@@ -8,11 +8,14 @@ public sealed record LLMGenerationRequest(
     string? ProjectDescription,
     string RequestedModel,
     string UserMessage,
+    string WorkspaceRootPath,
     IReadOnlyList<ProjectFileDto> Files);
 
 public abstract record LLMStreamEvent;
 
 public sealed record LLMTextDelta(string Text) : LLMStreamEvent;
+
+public sealed record LLMToolDelta(string Title, string Status, string? Detail) : LLMStreamEvent;
 
 public sealed record LLMFilePatchDelta(GeneratedFilePatch Patch) : LLMStreamEvent;
 
