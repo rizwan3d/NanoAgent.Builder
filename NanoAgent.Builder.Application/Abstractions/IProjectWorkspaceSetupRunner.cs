@@ -6,8 +6,15 @@ public interface IProjectWorkspaceSetupRunner
 {
     Task<ProjectWorkspaceSetupResult> PrepareAsync(
         AgentProject project,
+        Func<ProjectWorkspaceSetupLogEntry, CancellationToken, Task>? logAsync = null,
         CancellationToken cancellationToken = default);
 }
+
+public sealed record ProjectWorkspaceSetupLogEntry(
+    Guid ProjectId,
+    DateTimeOffset CreatedAtUtc,
+    string Level,
+    string Message);
 
 public sealed record ProjectWorkspaceSetupResult(
     bool Succeeded,
