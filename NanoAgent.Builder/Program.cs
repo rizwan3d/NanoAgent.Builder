@@ -6,6 +6,7 @@ using NanoAgent.Builder.Infrastructure;
 using NanoAgent.Builder.Infrastructure.Database;
 using NanoAgent.Builder.Infrastructure.Workspaces;
 using NanoAgent.Builder.Security;
+using NanoAgent.Builder.Workspaces;
 
 namespace NanoAgent.Builder;
 
@@ -22,12 +23,16 @@ public class Program
             options.Conventions.AuthorizeFolder("/Admin");
             options.Conventions.AuthorizeFolder("/Billing");
         });
+        builder.Services.AddSignalR();
 
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddScoped<ICurrentUserContext, CurrentUserContext>();
         builder.Services.AddApplication();
         builder.Services.AddInfrastructure(builder.Configuration, builder.Environment.ContentRootPath);
         builder.Services.AddScoped<IProjectWorkspaceSetupRunner, ProjectWorkspaceSetupRunner>();
+        builder.Services.AddSingleton<ProjectWorkspaceSetupQueue>();
+        builder.Services.AddSingleton<IProjectWorkspaceSetupQueue>(provider => provider.GetRequiredService<ProjectWorkspaceSetupQueue>());
+        builder.Services.AddHostedService<ProjectWorkspaceSetupWorker>();
 
         builder.Services.ConfigureApplicationCookie(options =>
         {
@@ -49,6 +54,9 @@ public class Program
         app.UseRouting();
         app.UseAuthentication();
         app.UseAuthorization();
+
+        app.MapHub<ProjectWorkspaceLogHub>("/workspace-log-hub")
+            .RequireAuthorization();
 
         app.MapPost("/billing/stripe-webhook", async (HttpRequest request, IStripeWebhookHandler webhookHandler, CancellationToken cancellationToken) =>
         {
