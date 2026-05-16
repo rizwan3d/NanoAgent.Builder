@@ -92,12 +92,13 @@ internal sealed class ProjectWorkspaceService : IProjectWorkspaceService
         try
         {
             var providerRequest = new LLMGenerationRequest(
-                project.Id,
-                project.Name,
-                project.Description,
-                selectedModel,
-                request.Message,
-                existingFiles.Select(MapFile).ToList());
+               project.Id,
+               project.Name,
+               project.Description,
+               selectedModel,
+               request.Message,
+                _workspaceFileSystem.GetProjectRootPath(project),
+               existingFiles.Select(MapFile).ToList());
 
             var textBuilder = new StringBuilder();
             var patches = new List<GeneratedFilePatch>();

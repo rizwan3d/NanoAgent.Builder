@@ -24,8 +24,8 @@ public sealed class ProjectWorkspaceSetupRunner : IProjectWorkspaceSetupRunner
 
         foreach (var command in new[]
         {
-            new WorkspaceCommand("npm", "install"),
-            new WorkspaceCommand("npm", "run build")
+            new WorkspaceCommand("npm install"),
+            new WorkspaceCommand("npm run build")
         })
         {
             var result = await RunCommandAsync(projectRootPath, command, cancellationToken);
@@ -53,16 +53,7 @@ public sealed class ProjectWorkspaceSetupRunner : IProjectWorkspaceSetupRunner
         var output = new StringBuilder();
         var error = new StringBuilder();
 
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = command.FileName,
-            Arguments = command.Arguments,
-            WorkingDirectory = workingDirectory,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
+        var startInfo = CreateStartInfo(workingDirectory, command);
 
         using var process = new Process
         {
@@ -105,11 +96,23 @@ public sealed class ProjectWorkspaceSetupRunner : IProjectWorkspaceSetupRunner
         }
         catch (OperationCanceledException) when (timeoutSource.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
+            TryKillProcess(process);
+
             return new ProjectWorkspaceCommandResult(
                 command.DisplayName,
                 -1,
                 output.ToString(),
                 $"The command timed out after {CommandTimeout.TotalMinutes:N0} minutes.{Environment.NewLine}{error}");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            TryKillProcess(process);
+
+            return new ProjectWorkspaceCommandResult(
+                command.DisplayName,
+                -1,
+                output.ToString(),
+                $"The command was cancelled.{Environment.NewLine}{error}");
         }
         catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or InvalidOperationException)
         {
@@ -121,8 +124,53 @@ public sealed class ProjectWorkspaceSetupRunner : IProjectWorkspaceSetupRunner
         }
     }
 
-    private sealed record WorkspaceCommand(string FileName, string Arguments)
+    private static ProcessStartInfo CreateStartInfo(
+        string workingDirectory,
+        WorkspaceCommand command)
     {
-        public string DisplayName => $"{FileName} {Arguments}";
+        if (OperatingSystem.IsWindows())
+        {
+            return new ProcessStartInfo
+            {
+                FileName = "cmd.exe",
+                Arguments = $"/c {command.CommandText}",
+                WorkingDirectory = workingDirectory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+        }
+
+        return new ProcessStartInfo
+        {
+            FileName = "/bin/sh",
+            Arguments = $"-c \"{command.CommandText.Replace("\"", "\\\"", StringComparison.Ordinal)}\"",
+            WorkingDirectory = workingDirectory,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+    }
+
+    private static void TryKillProcess(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+        catch
+        {
+            // Ignore cleanup failures. The command result will still report the original failure.
+        }
+    }
+
+    private sealed record WorkspaceCommand(string CommandText)
+    {
+        public string DisplayName => CommandText;
     }
 }
