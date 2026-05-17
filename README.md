@@ -491,7 +491,6 @@ It already includes the product foundation many AI tools need:
 * Starter app generation
 
 Use it as a base to launch your own AI-powered builder, coding assistant, app generator, or developer platform.
-
 ---
 
 
